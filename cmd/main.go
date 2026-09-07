@@ -4,8 +4,11 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
+	"os"
 
 	"github.com/tacenva/database"
+	tacpass_core "github.com/tacenva/tacpass-core"
 	accesscontrolCore "github.com/tacenva/tacpass-core/accesscontrol"
 	authCore "github.com/tacenva/tacpass-core/auth"
 	"github.com/tacenva/tacpass-core/entity"
@@ -19,6 +22,7 @@ import (
 	"github.com/tacenva/tacpassd/internal/feature/vault"
 	"github.com/tacenva/tacpassd/internal/middleware"
 	"github.com/tacenva/tacpassd/internal/server"
+	"github.com/tacenva/tacpassd/internal/tls"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -50,7 +54,7 @@ func main() {
 
 	flag.Parse()
 
-	cfg, err := config.Load()
+	cfg, err := config.LoadOrCreate()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -58,6 +62,10 @@ func main() {
 		cfg.Path(config.AppDBFileName),
 	)
 	if err != nil {
+		log.Fatal(err)
+	}
+
+	if err := tacpass_core.Migrate(sqliteDB); err != nil {
 		log.Fatal(err)
 	}
 
@@ -165,18 +173,42 @@ func serve(
 		vaultHandler,
 	)
 
+	var handler http.Handler = router
+
+	handler = middleware.Debug(handler)
+	// if debug {
+	// }
+
+	if err := ensureTLS(cfg); err != nil {
+		return err
+	}
+
 	httpServer := server.New(
-		fmt.Sprintf(
-			"0.0.0.0:%d",
-			cfg.Server.Port,
-		),
+		fmt.Sprintf("0.0.0.0:%d", cfg.Server.Port),
 		router,
 	)
 
 	return httpServer.Run(
-		cfg.TLS.CertFile,
-		cfg.TLS.KeyFile,
+		cfg.Path(cfg.TLS.CertFile),
+		cfg.Path(cfg.TLS.KeyFile),
 	)
+}
+
+func ensureTLS(cfg *config.Config) error {
+	if _, err := os.Stat(cfg.Path(cfg.TLS.CertFile)); err == nil {
+		if _, err := os.Stat(cfg.Path(cfg.TLS.KeyFile)); err == nil {
+			return nil
+		}
+	}
+
+	if err := tls.GenerateSelfSignedCert(
+		cfg.Path(cfg.TLS.CertFile),
+		cfg.Path(cfg.TLS.KeyFile),
+	); err != nil {
+		return fmt.Errorf("generate tls certificate: %w", err)
+	}
+
+	return nil
 }
 
 func OpenSQLite(
@@ -243,7 +275,8 @@ func addAdminPrivilege(
 
 	fmt.Println(
 		"admin keypair created:",
-		keypair,
+		keypair.PublicKey,
+		keypair.PrivateKey,
 	)
 
 	return nil

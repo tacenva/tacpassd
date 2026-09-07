@@ -22,6 +22,10 @@ func NewHandler(
 	}
 }
 
+type createRequest struct {
+	Privilege entity.Privilege `json:"privilege"`
+}
+
 type changePrivilegeRequest struct {
 	Privilege entity.Privilege `json:"privilege"`
 }
@@ -47,25 +51,25 @@ func (h *Handler) List(
 	)
 }
 
-func (h *Handler) GetByPublicKey(
+func (h *Handler) Get(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	publicKey := strings.TrimSpace(
-		r.PathValue("publicKey"),
+	permissionID := strings.TrimSpace(
+		r.PathValue("id"),
 	)
 
-	if publicKey == "" {
+	if permissionID == "" {
 		http.Error(
 			w,
-			"public key is required",
+			"id is required",
 			http.StatusBadRequest,
 		)
 		return
 	}
 
-	permission, err := h.accesscontrolService.GetByPublicKey(
-		publicKey,
+	permission, err := h.accesscontrolService.Get(
+		permissionID,
 	)
 	if err != nil {
 		http.Error(
@@ -87,9 +91,7 @@ func (h *Handler) Create(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	var request struct {
-		Privilege entity.Privilege `json:"privilege"`
-	}
+	var request createRequest
 
 	if err := json.NewDecoder(r.Body).Decode(
 		&request,
@@ -133,11 +135,11 @@ func (h *Handler) ChangePrivilege(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	id := strings.TrimSpace(
+	permissionID := strings.TrimSpace(
 		r.PathValue("id"),
 	)
 
-	if id == "" {
+	if permissionID == "" {
 		http.Error(
 			w,
 			"id is required",
@@ -160,7 +162,7 @@ func (h *Handler) ChangePrivilege(
 	}
 
 	if err := h.accesscontrolService.ChangePrivilege(
-		id,
+		permissionID,
 		request.Privilege,
 	); err != nil {
 		http.Error(
@@ -178,11 +180,11 @@ func (h *Handler) Revoke(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	id := strings.TrimSpace(
+	permissionID := strings.TrimSpace(
 		r.PathValue("id"),
 	)
 
-	if id == "" {
+	if permissionID == "" {
 		http.Error(
 			w,
 			"id is required",
@@ -192,7 +194,7 @@ func (h *Handler) Revoke(
 	}
 
 	if err := h.accesscontrolService.Revoke(
-		id,
+		permissionID,
 	); err != nil {
 		http.Error(
 			w,

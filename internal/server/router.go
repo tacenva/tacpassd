@@ -110,77 +110,61 @@ func registerVaultRoutes(
 func registerAccessControlRoutes(
 	mux *http.ServeMux,
 	authMiddleware *middleware.Auth,
-	accessControlHandler *accesscontrol.Handler,
+	handler *accesscontrol.Handler,
 ) {
 	mux.Handle(
 		"GET /access-control",
 		authMiddleware.Authenticate(
-			http.HandlerFunc(
-				accessControlHandler.List,
-			),
+			http.HandlerFunc(handler.List),
 		),
 	)
 
 	mux.Handle(
-		"GET /access-control/public-key/{publicKey}",
+		"GET /access-control/{id}",
 		authMiddleware.Authenticate(
-			http.HandlerFunc(
-				accessControlHandler.GetByPublicKey,
-			),
+			http.HandlerFunc(handler.Get),
 		),
 	)
 
 	mux.Handle(
 		"POST /access-control",
 		authMiddleware.Authenticate(
-			http.HandlerFunc(
-				accessControlHandler.Create,
-			),
+			http.HandlerFunc(handler.Create),
 		),
 	)
 
 	mux.Handle(
 		"PATCH /access-control/{id}/privilege",
 		authMiddleware.Authenticate(
-			http.HandlerFunc(
-				accessControlHandler.ChangePrivilege,
-			),
+			http.HandlerFunc(handler.ChangePrivilege),
 		),
 	)
 
 	mux.Handle(
 		"DELETE /access-control/{id}",
 		authMiddleware.Authenticate(
-			http.HandlerFunc(
-				accessControlHandler.Revoke,
-			),
+			http.HandlerFunc(handler.Revoke),
 		),
 	)
 
 	mux.Handle(
 		"GET /access-control/{id}/users",
 		authMiddleware.Authenticate(
-			http.HandlerFunc(
-				accessControlHandler.UserList,
-			),
+			http.HandlerFunc(handler.UserList),
 		),
 	)
 
 	mux.Handle(
 		"POST /access-control/users/{userId}/approve",
 		authMiddleware.Authenticate(
-			http.HandlerFunc(
-				accessControlHandler.ApproveUser,
-			),
+			http.HandlerFunc(handler.ApproveUser),
 		),
 	)
 
 	mux.Handle(
 		"POST /access-control/users/{userId}/revoke",
 		authMiddleware.Authenticate(
-			http.HandlerFunc(
-				accessControlHandler.RevokeUser,
-			),
+			http.HandlerFunc(handler.RevokeUser),
 		),
 	)
 }
