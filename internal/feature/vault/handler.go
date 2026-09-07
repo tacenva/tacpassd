@@ -20,12 +20,15 @@ type Handler struct {
 
 func NewHandler(
 	vaultServiceCore *VaultServiceCore.Service,
-	tacenvaRawDB *database.RawDB,
+	tacenvaDB *database.DB,
 	vaultaccessService *vaultaccess.Service,
 ) *Handler {
 	return &Handler{
 		vaultServiceCore: vaultServiceCore,
-		vaultService:     NewService(tacenvaRawDB, vaultaccessService),
+		vaultService: NewService(
+			tacenvaDB,
+			vaultaccessService,
+		),
 	}
 }
 
@@ -43,7 +46,6 @@ func (h *Handler) VaultAccessList(
 	}
 
 	authUser := middleware.GetAuthUser(r)
-
 	if authUser == nil {
 		http.Error(
 			w,
@@ -70,9 +72,7 @@ func (h *Handler) VaultAccessList(
 		"application/json",
 	)
 
-	w.WriteHeader(
-		http.StatusOK,
-	)
+	w.WriteHeader(http.StatusOK)
 
 	_ = json.NewEncoder(w).Encode(
 		vaultList,
@@ -93,7 +93,6 @@ func (h *Handler) CreateVault(
 	}
 
 	authUser := middleware.GetAuthUser(r)
-
 	if authUser == nil {
 		http.Error(
 			w,
@@ -212,9 +211,12 @@ func (h *Handler) CreateRecord(
 		"Content-Type",
 		"text/plain",
 	)
+
 	w.WriteHeader(http.StatusCreated)
 
-	_, _ = w.Write([]byte(recordID))
+	_, _ = w.Write(
+		[]byte(recordID),
+	)
 }
 
 func (h *Handler) GetRecord(
@@ -274,6 +276,7 @@ func (h *Handler) GetRecord(
 		"Content-Type",
 		"application/octet-stream",
 	)
+
 	w.WriteHeader(http.StatusOK)
 
 	_, _ = w.Write(data)
@@ -321,32 +324,18 @@ func (h *Handler) GetAllRecord(
 		return
 	}
 
-	// Jangan JSON encode payload raw.
-	// Karena []byte akan otomatis jadi base64 kalau dimarshal ke JSON.
-	//
-	// Response dibuat sebagai stream dengan format:
-	//
-	// [record-id]\n
-	// [raw-data]\n
-	//
-	// Tapi untuk data encrypted arbitrary, format ini juga tidak ideal
-	// kalau payload bisa mengandung newline.
-	//
-	// Untuk sementara endpoint ini lebih aman menggunakan application/octet-stream
-	// dengan format length-prefixed.
-
+	// []byte akan otomatis di-encode sebagai base64 oleh encoding/json.
+	// Ini hanya transport encoding, bukan encryption.
 	w.Header().Set(
 		"Content-Type",
-		"application/octet-stream",
+		"application/json",
 	)
+
 	w.WriteHeader(http.StatusOK)
 
-	for id, data := range records {
-		_, _ = w.Write([]byte(id))
-		_, _ = w.Write([]byte("\n"))
-		_, _ = w.Write(data)
-		_, _ = w.Write([]byte("\n"))
-	}
+	_ = json.NewEncoder(w).Encode(
+		records,
+	)
 }
 
 func (h *Handler) UpdateRecord(
@@ -503,9 +492,11 @@ func (h *Handler) handleServiceError(
 func getVaultID(
 	r *http.Request,
 ) (string, bool) {
-	vaultID := r.PathValue("vaultID")
+	vaultID := strings.TrimSpace(
+		r.PathValue("vaultID"),
+	)
 
-	if strings.TrimSpace(vaultID) == "" {
+	if vaultID == "" {
 		return "", false
 	}
 
@@ -515,9 +506,11 @@ func getVaultID(
 func getRecordID(
 	r *http.Request,
 ) (string, bool) {
-	recordID := r.PathValue("recordID")
+	recordID := strings.TrimSpace(
+		r.PathValue("recordID"),
+	)
 
-	if strings.TrimSpace(recordID) == "" {
+	if recordID == "" {
 		return "", false
 	}
 

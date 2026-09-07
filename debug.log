@@ -1,0 +1,81 @@
+=== AUTH ===
+Method: GET | Path: /vault/01M1YJ6HXZBGV0K9RNSWYVKT7T/record
+Authorization exists: true
+Bearer prefix valid: true
+Token exists: true | Token length: 43
+GetUserData error: <nil>
+AuthUser nil: false
+AuthUser ID: 01M1YJ4RJ0VR9Q7W4FW0PFJH8R | PermissionID: 01M1YJ3YS79PXGRREVEGMKTEBP | Status: approved
+AUTH SUCCESS: user approved
+=== AUTH ===
+Method: GET | Path: /vault/01M1YJ6HXZBGV0K9RNSWYVKT7T/record
+Authorization exists: true
+Bearer prefix valid: true
+Token exists: true | Token length: 43
+GetUserData error: <nil>
+AuthUser nil: false
+AuthUser ID: 01M1YJ4RJ0VR9Q7W4FW0PFJH8R | PermissionID: 01M1YJ3YS79PXGRREVEGMKTEBP | Status: approved
+AUTH SUCCESS: user approved
+=== AUTH ===
+Method: POST | Path: /vault/01M1YJ6HXZBGV0K9RNSWYVKT7T/record
+Authorization exists: true
+Bearer prefix valid: true
+Token exists: true | Token length: 43
+GetUserData error: <nil>
+AuthUser nil: false
+AuthUser ID: 01M1YJ4RJ0VR9Q7W4FW0PFJH8R | PermissionID: 01M1YJ3YS79PXGRREVEGMKTEBP | Status: approved
+AUTH SUCCESS: user approved
+=== AUTH ===
+Method: GET | Path: /vault/01M1YJ6HXZBGV0K9RNSWYVKT7T/record
+Authorization exists: true
+Bearer prefix valid: true
+Token exists: true | Token length: 43
+GetUserData error: <nil>
+AuthUser nil: false
+AuthUser ID: 01M1YJ4RJ0VR9Q7W4FW0PFJH8R | PermissionID: 01M1YJ3YS79PXGRREVEGMKTEBP | Status: approved
+AUTH SUCCESS: user approved
+=== AUTH ===
+Method: GET | Path: /vault/01M1YJ6HXZBGV0K9RNSWYVKT7T/record
+Authorization exists: true
+Bearer prefix valid: true
+Token exists: true | Token length: 43
+GetUserData error: <nil>
+AuthUser nil: false
+AuthUser ID: 01M1YJ4RJ0VR9Q7W4FW0PFJH8R | PermissionID: 01M1YJ3YS79PXGRREVEGMKTEBP | Status: approved
+AUTH SUCCESS: user approved
+=== AUTH ===
+Method: GET | Path: /vault/01M1YJ6HXZBGV0K9RNSWYVKT7T/record
+Authorization exists: true
+Bearer prefix valid: true
+Token exists: true | Token length: 43
+GetUserData error: <nil>
+AuthUser nil: false
+AuthUser ID: 01M1YJ4RJ0VR9Q7W4FW0PFJH8R | PermissionID: 01M1YJ3YS79PXGRREVEGMKTEBP | Status: approved
+AUTH SUCCESS: user approved
+=== AUTH ===
+Method: GET | Path: /vault/01M1YJ6HXZBGV0K9RNSWYVKT7T/record
+Authorization exists: true
+Bearer prefix valid: true
+Token exists: true | Token length: 43
+GetUserData error: <nil>
+AuthUser nil: false
+AuthUser ID: 01M1YJ4RJ0VR9Q7W4FW0PFJH8R | PermissionID: 01M1YJ3YS79PXGRREVEGMKTEBP | Status: approved
+AUTH SUCCESS: user approved
+=== AUTH ===
+Method: PUT | Path: /vault/01M1YJ6HXZBGV0K9RNSWYVKT7T/record/01M1YNPMJYQE5X65HEYPJ154T4
+Authorization exists: true
+Bearer prefix valid: true
+Token exists: true | Token length: 43
+GetUserData error: <nil>
+AuthUser nil: false
+AuthUser ID: 01M1YJ4RJ0VR9Q7W4FW0PFJH8R | PermissionID: 01M1YJ3YS79PXGRREVEGMKTEBP | Status: approved
+AUTH SUCCESS: user approved
+=== AUTH ===
+Method: PUT | Path: /vault/01M1YJ6HXZBGV0K9RNSWYVKT7T/record/01M1YNPMJYQE5X65HEYPJ154T4
+Authorization exists: true
+Bearer prefix valid: true
+Token exists: true | Token length: 43
+GetUserData error: <nil>
+AuthUser nil: false
+AuthUser ID: 01M1YJ4RJ0VR9Q7W4FW0PFJH8R | PermissionID: 01M1YJ3YS79PXGRREVEGMKTEBP | Status: approved
+AUTH SUCCESS: user approved

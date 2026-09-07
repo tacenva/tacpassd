@@ -126,10 +126,6 @@ func serve(
 		cfg.VaultDir(),
 	)
 
-	tacenvaRawDB := database.NewRaw(
-		cfg.VaultDir(),
-	)
-
 	vaultRepository := vaultCore.NewRepository(
 		sqliteDB,
 	)
@@ -158,7 +154,7 @@ func serve(
 
 	vaultHandler := vault.NewHandler(
 		vaultService,
-		tacenvaRawDB,
+		tacenvaDB,
 		vaultaccessService,
 	)
 

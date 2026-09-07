@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	ConfigDirName  = ".tacenva"
+	ConfigDirName  = ".tacenva-node-b" // simulasi beda node
 	ConfigFileName = "config.toml"
 
 	AppDBFileName                = "tacenva.db"

@@ -71,7 +71,7 @@ func registerVaultRoutes(
 	)
 
 	mux.Handle(
-		"POST /vault/{vaultID}/records",
+		"POST /vault/{vaultID}/record",
 		authMiddleware.Authenticate(
 			http.HandlerFunc(
 				vaultHandler.CreateRecord,
@@ -80,7 +80,7 @@ func registerVaultRoutes(
 	)
 
 	mux.Handle(
-		"GET /vault/{vaultID}/records",
+		"GET /vault/{vaultID}/record",
 		authMiddleware.Authenticate(
 			http.HandlerFunc(
 				vaultHandler.GetAllRecord,
@@ -89,7 +89,7 @@ func registerVaultRoutes(
 	)
 
 	mux.Handle(
-		"GET /vault/{vaultID}/records/{recordID}",
+		"GET /vault/{vaultID}/record/{recordID}",
 		authMiddleware.Authenticate(
 			http.HandlerFunc(
 				vaultHandler.GetRecord,
@@ -98,7 +98,7 @@ func registerVaultRoutes(
 	)
 
 	mux.Handle(
-		"PUT /vault/{vaultID}/records/{recordID}",
+		"PUT /vault/{vaultID}/record/{recordID}",
 		authMiddleware.Authenticate(
 			http.HandlerFunc(
 				vaultHandler.UpdateRecord,
@@ -107,7 +107,7 @@ func registerVaultRoutes(
 	)
 
 	mux.Handle(
-		"DELETE /vault/{vaultID}/records/{recordID}",
+		"DELETE /vault/{vaultID}/record/{recordID}",
 		authMiddleware.Authenticate(
 			http.HandlerFunc(
 				vaultHandler.DeleteRecord,
