@@ -53,10 +53,19 @@ func registerVaultRoutes(
 	vaultHandler *vault.Handler,
 ) {
 	mux.Handle(
-		"GET /vault/{vaultID}",
+		"GET /vault",
 		authMiddleware.Authenticate(
 			http.HandlerFunc(
-				vaultHandler.GetVault,
+				vaultHandler.VaultAccessList,
+			),
+		),
+	)
+
+	mux.Handle(
+		"POST /vault",
+		authMiddleware.Authenticate(
+			http.HandlerFunc(
+				vaultHandler.CreateVault,
 			),
 		),
 	)

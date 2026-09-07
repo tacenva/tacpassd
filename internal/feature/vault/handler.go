@@ -29,7 +29,7 @@ func NewHandler(
 	}
 }
 
-func (h *Handler) GetVault(
+func (h *Handler) VaultAccessList(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
@@ -53,7 +53,7 @@ func (h *Handler) GetVault(
 		return
 	}
 
-	vaultList, err := h.vaultServiceCore.VaultList(
+	vaultList, err := h.vaultServiceCore.VaultAccessList(
 		authUser,
 	)
 	if err != nil {
@@ -77,6 +77,73 @@ func (h *Handler) GetVault(
 	_ = json.NewEncoder(w).Encode(
 		vaultList,
 	)
+}
+
+func (h *Handler) CreateVault(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if r.Method != http.MethodPost {
+		http.Error(
+			w,
+			"method not allowed",
+			http.StatusMethodNotAllowed,
+		)
+		return
+	}
+
+	authUser := middleware.GetAuthUser(r)
+
+	if authUser == nil {
+		http.Error(
+			w,
+			"unauthorized",
+			http.StatusUnauthorized,
+		)
+		return
+	}
+
+	var request struct {
+		Name string `json:"name"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(
+			w,
+			"invalid request body",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	request.Name = strings.TrimSpace(request.Name)
+
+	if request.Name == "" {
+		http.Error(
+			w,
+			"vault name is required",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	vaultAccess, err := h.vaultServiceCore.Create(
+		authUser,
+		request.Name,
+	)
+	if err != nil {
+		h.handleServiceError(w, err)
+		return
+	}
+
+	w.Header().Set(
+		"Content-Type",
+		"application/json",
+	)
+
+	w.WriteHeader(http.StatusCreated)
+
+	_ = json.NewEncoder(w).Encode(vaultAccess)
 }
 
 func (h *Handler) CreateRecord(
