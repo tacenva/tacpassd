@@ -7,14 +7,8 @@ import (
 	"net/http"
 
 	"github.com/tacenva/database"
-	tacpass_core "github.com/tacenva/tacpass-core"
-	accesscontrolCore "github.com/tacenva/tacpass-core/accesscontrol"
-	authCore "github.com/tacenva/tacpass-core/auth"
+	"github.com/tacenva/tacpass-core/app"
 	"github.com/tacenva/tacpass-core/entity"
-	"github.com/tacenva/tacpass-core/permission"
-	"github.com/tacenva/tacpass-core/user"
-	vaultCore "github.com/tacenva/tacpass-core/vault"
-	"github.com/tacenva/tacpass-core/vaultaccess"
 	"github.com/tacenva/tacpassd/internal/config"
 	"github.com/tacenva/tacpassd/internal/feature/accesscontrol"
 	"github.com/tacenva/tacpassd/internal/feature/auth"
@@ -53,18 +47,22 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if err := tacpass_core.Migrate(sqliteDB); err != nil {
+	if err := app.Migrate(sqliteDB); err != nil {
 		log.Fatal(err)
 	}
 
-	accesscontrolService,
-		authService := getCoreServices(
+	tacenvaDB := database.New(
+		cfg.VaultDir(),
+	)
+
+	services := app.NewServices(
 		sqliteDB,
+		tacenvaDB,
 	)
 
 	if *addAdmin != "" {
 		if err := addAdminPrivilege(
-			accesscontrolService,
+			services,
 			*addAdmin,
 		); err != nil {
 			log.Fatal(err)
@@ -75,7 +73,7 @@ func main() {
 
 	if *approve {
 		if err := approveUserInteractive(
-			accesscontrolService,
+			services,
 		); err != nil {
 			log.Fatal(err)
 		}
@@ -85,9 +83,8 @@ func main() {
 
 	if err := serve(
 		cfg,
-		sqliteDB,
-		accesscontrolService,
-		authService,
+		services,
+		tacenvaDB,
 	); err != nil {
 		log.Fatal(err)
 	}
@@ -95,48 +92,25 @@ func main() {
 
 func serve(
 	cfg *config.Config,
-	sqliteDB *gorm.DB,
-	accesscontrolService *accesscontrolCore.Service,
-	authService *authCore.Service,
+	services *app.Services,
+	tacenvaDB *database.DB,
 ) error {
-	tacenvaDB := database.New(
-		cfg.VaultDir(),
-	)
-
-	vaultRepository := vaultCore.NewRepository(
-		sqliteDB,
-	)
-
-	vaultaccessRepository := vaultaccess.NewRepository(
-		sqliteDB,
-	)
-
-	vaultaccessService := vaultaccess.NewService(
-		vaultaccessRepository,
-	)
-
-	vaultService := vaultCore.NewService(
-		vaultRepository,
-		tacenvaDB,
-		vaultaccessService,
-	)
-
 	authHandler := auth.NewHandler(
-		authService,
+		services.Auth,
 	)
 
 	accesscontrolHandler := accesscontrol.NewHandler(
-		accesscontrolService,
+		services.AccessControl,
 	)
 
 	vaultHandler := vault.NewHandler(
-		vaultService,
+		services.Vault,
 		tacenvaDB,
-		vaultaccessService,
+		services.VaultAccess,
 	)
 
 	authMiddleware := middleware.NewAuth(
-		authService,
+		services.Auth,
 	)
 
 	router := server.NewRouter(
@@ -199,46 +173,11 @@ func OpenSQLite(
 	return db, nil
 }
 
-func getCoreServices(
-	sqliteDB *gorm.DB,
-) (
-	*accesscontrolCore.Service,
-	*authCore.Service,
-) {
-	userRepository := user.NewRepository(
-		sqliteDB,
-	)
-
-	userService := user.NewService(
-		userRepository,
-	)
-
-	permissionRepository := permission.NewRepository(
-		sqliteDB,
-	)
-
-	permissionService := permission.NewService(
-		permissionRepository,
-	)
-
-	accesscontrolService := accesscontrolCore.NewService(
-		userService,
-		permissionService,
-	)
-
-	authService := authCore.NewService(
-		userService,
-		permissionService,
-	)
-
-	return accesscontrolService, authService
-}
-
 func addAdminPrivilege(
-	accesscontrolService *accesscontrolCore.Service,
+	services *app.Services,
 	name string,
 ) error {
-	_, keypair, err := accesscontrolService.Create(
+	_, keypair, err := services.AccessControl.Create(
 		name,
 		entity.PrivilegeAdmin,
 	)
@@ -256,9 +195,9 @@ func addAdminPrivilege(
 }
 
 func approveUserInteractive(
-	accesscontrolService *accesscontrolCore.Service,
+	services *app.Services,
 ) error {
-	permissions, err := accesscontrolService.List()
+	permissions, err := services.AccessControl.List()
 	if err != nil {
 		return err
 	}
@@ -289,7 +228,7 @@ func approveUserInteractive(
 
 	selectedPermission := permissions[permissionIndex]
 
-	users, err := accesscontrolService.UserList(
+	users, err := services.AccessControl.UserList(
 		selectedPermission.ID,
 	)
 	if err != nil {
@@ -330,7 +269,7 @@ func approveUserInteractive(
 
 	selectedUser := users[userIndex]
 
-	approvedUser, err := accesscontrolService.ApproveUser(
+	approvedUser, err := services.AccessControl.ApproveUser(
 		selectedUser.ID,
 	)
 	if err != nil {

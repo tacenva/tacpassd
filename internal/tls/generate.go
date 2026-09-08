@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -81,17 +82,7 @@ func GenerateSelfSignedCert(certFile, keyFile string) error {
 
 		BasicConstraintsValid: true,
 
-		DNSNames: []string{
-			"localhost",
-		},
-
-		IPAddresses: append(
-			[]net.IP{
-				net.ParseIP("127.0.0.1"),
-				net.ParseIP("::1"),
-			},
-			privateIPs...,
-		),
+		IPAddresses: privateIPs,
 	}
 
 	certDER, err := x509.CreateCertificate(
@@ -152,7 +143,7 @@ func writePrivateKey(path string, der []byte) error {
 		0600,
 	)
 	if err != nil {
-		return fmt.Errorf("create key file: %w", err)
+		return fmt.Errorf("create private key file: %w", err)
 	}
 	defer keyOut.Close()
 
@@ -196,6 +187,10 @@ func getPrivateIPs() ([]net.IP, error) {
 			continue
 		}
 
+		if isExcludedInterface(iface.Name) {
+			continue
+		}
+
 		addrs, err := iface.Addrs()
 		if err != nil {
 			continue
@@ -227,4 +222,24 @@ func getPrivateIPs() ([]net.IP, error) {
 	}
 
 	return privateIPs, nil
+}
+
+func isExcludedInterface(name string) bool {
+	if name == "docker0" {
+		return true
+	}
+
+	if name == "docker_gwbridge" {
+		return true
+	}
+
+	if strings.HasPrefix(name, "br-") {
+		return true
+	}
+
+	if strings.HasPrefix(name, "veth") {
+		return true
+	}
+
+	return false
 }
