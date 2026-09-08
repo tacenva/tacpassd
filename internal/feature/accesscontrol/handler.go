@@ -2,20 +2,22 @@ package accesscontrol
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
-	"github.com/tacenva/tacpass-core/accesscontrol"
+	coreAC "github.com/tacenva/tacpass-core/accesscontrol"
 	"github.com/tacenva/tacpass-core/entity"
 	"github.com/tacenva/tacpass-core/util/keyring"
+	"github.com/tacenva/tacpassd/internal/middleware"
 )
 
 type Handler struct {
-	accesscontrolService *accesscontrol.Service
+	accesscontrolService *coreAC.Service
 }
 
 func NewHandler(
-	accesscontrolService *accesscontrol.Service,
+	accesscontrolService *coreAC.Service,
 ) *Handler {
 	return &Handler{
 		accesscontrolService: accesscontrolService,
@@ -39,13 +41,21 @@ func (h *Handler) List(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	permissions, err := h.accesscontrolService.List()
-	if err != nil {
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
 		http.Error(
 			w,
-			err.Error(),
-			http.StatusInternalServerError,
+			"unauthorized",
+			http.StatusUnauthorized,
 		)
+		return
+	}
+
+	permissions, err := h.accesscontrolService.List(
+		authUser,
+	)
+	if err != nil {
+		h.handleServiceError(w, err)
 		return
 	}
 
@@ -60,6 +70,16 @@ func (h *Handler) Get(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(
+			w,
+			"unauthorized",
+			http.StatusUnauthorized,
+		)
+		return
+	}
+
 	permissionID := strings.TrimSpace(
 		r.PathValue("id"),
 	)
@@ -74,14 +94,11 @@ func (h *Handler) Get(
 	}
 
 	permission, err := h.accesscontrolService.Get(
+		authUser,
 		permissionID,
 	)
 	if err != nil {
-		http.Error(
-			w,
-			err.Error(),
-			http.StatusInternalServerError,
-		)
+		h.handleServiceError(w, err)
 		return
 	}
 
@@ -96,6 +113,16 @@ func (h *Handler) Create(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(
+			w,
+			"unauthorized",
+			http.StatusUnauthorized,
+		)
+		return
+	}
+
 	var request createRequest
 
 	if err := json.NewDecoder(r.Body).Decode(
@@ -109,16 +136,24 @@ func (h *Handler) Create(
 		return
 	}
 
+	request.Name = strings.TrimSpace(request.Name)
+
+	if request.Name == "" {
+		http.Error(
+			w,
+			"name is required",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
 	permission, keypair, err := h.accesscontrolService.Create(
+		authUser,
 		request.Name,
 		request.Privilege,
 	)
 	if err != nil {
-		http.Error(
-			w,
-			err.Error(),
-			http.StatusInternalServerError,
-		)
+		h.handleServiceError(w, err)
 		return
 	}
 
@@ -141,25 +176,59 @@ func (h *Handler) ChangeName(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	id := strings.TrimSpace(r.PathValue("id"))
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(
+			w,
+			"unauthorized",
+			http.StatusUnauthorized,
+		)
+		return
+	}
+
+	id := strings.TrimSpace(
+		r.PathValue("id"),
+	)
 
 	if id == "" {
-		http.Error(w, "access control id is required", http.StatusBadRequest)
+		http.Error(
+			w,
+			"access control id is required",
+			http.StatusBadRequest,
+		)
 		return
 	}
 
 	var request changeNameRequest
 
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(
+		&request,
+	); err != nil {
+		http.Error(
+			w,
+			"invalid request body",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	request.Name = strings.TrimSpace(request.Name)
+
+	if request.Name == "" {
+		http.Error(
+			w,
+			"name is required",
+			http.StatusBadRequest,
+		)
 		return
 	}
 
 	if err := h.accesscontrolService.ChangeName(
+		authUser,
 		id,
 		request.Name,
 	); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		h.handleServiceError(w, err)
 		return
 	}
 
@@ -170,6 +239,16 @@ func (h *Handler) ChangePrivilege(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(
+			w,
+			"unauthorized",
+			http.StatusUnauthorized,
+		)
+		return
+	}
+
 	permissionID := strings.TrimSpace(
 		r.PathValue("id"),
 	)
@@ -197,14 +276,11 @@ func (h *Handler) ChangePrivilege(
 	}
 
 	if err := h.accesscontrolService.ChangePrivilege(
+		authUser,
 		permissionID,
 		request.Privilege,
 	); err != nil {
-		http.Error(
-			w,
-			err.Error(),
-			http.StatusInternalServerError,
-		)
+		h.handleServiceError(w, err)
 		return
 	}
 
@@ -215,6 +291,16 @@ func (h *Handler) Revoke(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(
+			w,
+			"unauthorized",
+			http.StatusUnauthorized,
+		)
+		return
+	}
+
 	permissionID := strings.TrimSpace(
 		r.PathValue("id"),
 	)
@@ -229,13 +315,10 @@ func (h *Handler) Revoke(
 	}
 
 	if err := h.accesscontrolService.Revoke(
+		authUser,
 		permissionID,
 	); err != nil {
-		http.Error(
-			w,
-			err.Error(),
-			http.StatusInternalServerError,
-		)
+		h.handleServiceError(w, err)
 		return
 	}
 
@@ -246,6 +329,16 @@ func (h *Handler) UserList(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(
+			w,
+			"unauthorized",
+			http.StatusUnauthorized,
+		)
+		return
+	}
+
 	permissionID := strings.TrimSpace(
 		r.PathValue("id"),
 	)
@@ -260,14 +353,11 @@ func (h *Handler) UserList(
 	}
 
 	users, err := h.accesscontrolService.UserList(
+		authUser,
 		permissionID,
 	)
 	if err != nil {
-		http.Error(
-			w,
-			err.Error(),
-			http.StatusInternalServerError,
-		)
+		h.handleServiceError(w, err)
 		return
 	}
 
@@ -282,6 +372,16 @@ func (h *Handler) ApproveUser(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(
+			w,
+			"unauthorized",
+			http.StatusUnauthorized,
+		)
+		return
+	}
+
 	userID := strings.TrimSpace(
 		r.PathValue("userId"),
 	)
@@ -296,14 +396,11 @@ func (h *Handler) ApproveUser(
 	}
 
 	user, err := h.accesscontrolService.ApproveUser(
+		authUser,
 		userID,
 	)
 	if err != nil {
-		http.Error(
-			w,
-			err.Error(),
-			http.StatusInternalServerError,
-		)
+		h.handleServiceError(w, err)
 		return
 	}
 
@@ -318,6 +415,16 @@ func (h *Handler) RevokeUser(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(
+			w,
+			"unauthorized",
+			http.StatusUnauthorized,
+		)
+		return
+	}
+
 	userID := strings.TrimSpace(
 		r.PathValue("userId"),
 	)
@@ -332,14 +439,11 @@ func (h *Handler) RevokeUser(
 	}
 
 	user, err := h.accesscontrolService.RevokeUser(
+		authUser,
 		userID,
 	)
 	if err != nil {
-		http.Error(
-			w,
-			err.Error(),
-			http.StatusInternalServerError,
-		)
+		h.handleServiceError(w, err)
 		return
 	}
 
@@ -348,6 +452,34 @@ func (h *Handler) RevokeUser(
 		http.StatusOK,
 		user,
 	)
+}
+
+func (h *Handler) handleServiceError(
+	w http.ResponseWriter,
+	err error,
+) {
+	switch {
+	case errors.Is(err, coreAC.ErrPermission):
+		http.Error(
+			w,
+			"forbidden",
+			http.StatusForbidden,
+		)
+
+	case errors.Is(err, coreAC.ErrNotFound):
+		http.Error(
+			w,
+			"not found",
+			http.StatusNotFound,
+		)
+
+	default:
+		http.Error(
+			w,
+			"internal server error",
+			http.StatusInternalServerError,
+		)
+	}
 }
 
 func writeJSON(
@@ -362,7 +494,5 @@ func writeJSON(
 
 	w.WriteHeader(status)
 
-	if err := json.NewEncoder(w).Encode(data); err != nil {
-		return
-	}
+	_ = json.NewEncoder(w).Encode(data)
 }

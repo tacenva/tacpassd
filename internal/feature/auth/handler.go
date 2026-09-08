@@ -83,7 +83,7 @@ func (h *Handler) Enroll(
 		return
 	}
 
-	authToken, err := h.authService.RequestEnrollment(
+	authToken, err := h.authService.Enroll(
 		request.Hostname,
 		request.PublicKey,
 		entity.UserStatusPending,

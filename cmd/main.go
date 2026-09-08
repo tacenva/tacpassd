@@ -177,7 +177,7 @@ func addAdminPrivilege(
 	services *app.Services,
 	name string,
 ) error {
-	_, keypair, err := services.AccessControl.Create(
+	_, keypair, err := services.Permission.Create(
 		name,
 		entity.PrivilegeAdmin,
 	)
@@ -197,7 +197,7 @@ func addAdminPrivilege(
 func approveUserInteractive(
 	services *app.Services,
 ) error {
-	permissions, err := services.AccessControl.List()
+	permissions, err := services.Permission.List()
 	if err != nil {
 		return err
 	}
@@ -227,10 +227,9 @@ func approveUserInteractive(
 	}
 
 	selectedPermission := permissions[permissionIndex]
+	permissionData, err := services.Permission.Get(selectedPermission.ID)
+	users := permissionData.Users
 
-	users, err := services.AccessControl.UserList(
-		selectedPermission.ID,
-	)
 	if err != nil {
 		return err
 	}
@@ -269,8 +268,9 @@ func approveUserInteractive(
 
 	selectedUser := users[userIndex]
 
-	approvedUser, err := services.AccessControl.ApproveUser(
+	approvedUser, err := services.User.UpdateStatus(
 		selectedUser.ID,
+		entity.UserStatusApproved,
 	)
 	if err != nil {
 		return err
