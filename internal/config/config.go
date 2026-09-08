@@ -6,10 +6,11 @@ import (
 	"path/filepath"
 
 	"github.com/BurntSushi/toml"
+	"github.com/oklog/ulid/v2"
 )
 
 const (
-	ConfigDirName  = ".tacenva-node-b" // simulasi beda node
+	ConfigDirName  = ".tacenva"
 	ConfigFileName = "config.toml"
 
 	AppDBFileName                = "tacenva.db"
@@ -59,7 +60,7 @@ func (cfg *Config) VaultDir() string {
 	return cfg.Path("node", cfg.SoTULID, "vault")
 }
 
-func (cfg *Config) SetSoTULID(sotULID string) error {
+func (cfg *Config) setSoTULID(sotULID string) error {
 	if sotULID == "" {
 		return fmt.Errorf("sot ulid is required")
 	}
@@ -169,7 +170,20 @@ func LoadOrCreate() (*Config, error) {
 	)
 
 	if _, err := os.Stat(configPath); err == nil {
-		return Load()
+		cfg, err := Load()
+		if err != nil {
+			return nil, err
+		}
+
+		if cfg.SoTULID == "" {
+			if err := cfg.setSoTULID(
+				ulid.Make().String(),
+			); err != nil {
+				return nil, err
+			}
+		}
+
+		return cfg, nil
 	} else if !os.IsNotExist(err) {
 		return nil, fmt.Errorf(
 			"check config: %w",
@@ -179,11 +193,10 @@ func LoadOrCreate() (*Config, error) {
 
 	cfg := Default()
 
-	if err := cfg.Save(); err != nil {
-		return nil, fmt.Errorf(
-			"create default config: %w",
-			err,
-		)
+	if err := cfg.setSoTULID(
+		ulid.Make().String(),
+	); err != nil {
+		return nil, err
 	}
 
 	return cfg, nil
