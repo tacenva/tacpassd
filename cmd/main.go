@@ -27,28 +27,16 @@ import (
 )
 
 func main() {
-	addAdmin := flag.Bool(
+	addAdmin := flag.String(
 		"add-admin",
-		false,
-		"add admin privilege",
+		"",
+		"add permission with admin privilege",
 	)
 
-	listUnapproved := flag.Bool(
-		"list-unapproved",
-		false,
-		"list unapproved users",
-	)
-
-	approveUserID := flag.String(
+	approve := flag.Bool(
 		"approve",
-		"",
-		"approve user by ID",
-	)
-
-	publicKey := flag.String(
-		"public-key",
-		"",
-		"public key",
+		false,
+		"approve a user interactively",
 	)
 
 	flag.Parse()
@@ -57,6 +45,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	sqliteDB, err := OpenSQLite(
 		cfg.Path(config.AppDBFileName),
 	)
@@ -73,9 +62,10 @@ func main() {
 		sqliteDB,
 	)
 
-	if *addAdmin {
+	if *addAdmin != "" {
 		if err := addAdminPrivilege(
 			accesscontrolService,
+			*addAdmin,
 		); err != nil {
 			log.Fatal(err)
 		}
@@ -83,21 +73,9 @@ func main() {
 		return
 	}
 
-	if *listUnapproved {
-		if err := listUnapprovedUsers(
+	if *approve {
+		if err := approveUserInteractive(
 			accesscontrolService,
-			*publicKey,
-		); err != nil {
-			log.Fatal(err)
-		}
-
-		return
-	}
-
-	if *approveUserID != "" {
-		if err := approveUser(
-			accesscontrolService,
-			*approveUserID,
 		); err != nil {
 			log.Fatal(err)
 		}
@@ -177,7 +155,10 @@ func serve(
 	}
 
 	httpServer := server.New(
-		fmt.Sprintf("0.0.0.0:%d", cfg.Server.Port),
+		fmt.Sprintf(
+			"0.0.0.0:%d",
+			cfg.Server.Port,
+		),
 		handler,
 	)
 
@@ -192,7 +173,10 @@ func ensureTLS(cfg *config.Config) error {
 		cfg.Path(cfg.TLS.CertFile),
 		cfg.Path(cfg.TLS.KeyFile),
 	); err != nil {
-		return fmt.Errorf("generate tls certificate: %w", err)
+		return fmt.Errorf(
+			"generate tls certificate: %w",
+			err,
+		)
 	}
 
 	return nil
@@ -252,8 +236,10 @@ func getCoreServices(
 
 func addAdminPrivilege(
 	accesscontrolService *accesscontrolCore.Service,
+	name string,
 ) error {
 	_, keypair, err := accesscontrolService.Create(
+		name,
 		entity.PrivilegeAdmin,
 	)
 	if err != nil {
@@ -269,57 +255,122 @@ func addAdminPrivilege(
 	return nil
 }
 
-func listUnapprovedUsers(
+func approveUserInteractive(
 	accesscontrolService *accesscontrolCore.Service,
-	publicKey string,
 ) error {
-	if publicKey == "" {
-		return fmt.Errorf(
-			"--public-key is required",
+	permissions, err := accesscontrolService.List()
+	if err != nil {
+		return err
+	}
+
+	if len(permissions) == 0 {
+		fmt.Println("no permission found")
+		return nil
+	}
+
+	fmt.Println("permissions:")
+
+	for i, permission := range permissions {
+		fmt.Printf(
+			"[%d] %s (%s)\n",
+			i+1,
+			permission.Name,
+			permission.Privilege,
 		)
 	}
 
-	permissionData, err := accesscontrolService.GetByPublicKey(
-		publicKey,
+	permissionIndex, err := readSelection(
+		"select permission: ",
+		len(permissions),
 	)
 	if err != nil {
 		return err
 	}
+
+	selectedPermission := permissions[permissionIndex]
 
 	users, err := accesscontrolService.UserList(
-		permissionData.ID,
+		selectedPermission.ID,
 	)
 	if err != nil {
 		return err
 	}
 
-	for _, user := range users {
+	if len(users) == 0 {
 		fmt.Printf(
-			"id=%s hostname=%s\n",
-			user.ID,
+			"no users found for permission %q\n",
+			selectedPermission.Name,
+		)
+
+		return nil
+	}
+
+	fmt.Printf(
+		"\nusers for permission %q:\n",
+		selectedPermission.Name,
+	)
+
+	for i, user := range users {
+		fmt.Printf(
+			"[%d] %s (%s) status=%s\n",
+			i+1,
 			user.Hostname,
+			user.ID,
+			user.Status,
 		)
 	}
 
-	return nil
-}
+	userIndex, err := readSelection(
+		"select user to approve: ",
+		len(users),
+	)
+	if err != nil {
+		return err
+	}
 
-func approveUser(
-	accesscontrolService *accesscontrolCore.Service,
-	userID string,
-) error {
-	user, err := accesscontrolService.ApproveUser(
-		userID,
+	selectedUser := users[userIndex]
+
+	approvedUser, err := accesscontrolService.ApproveUser(
+		selectedUser.ID,
 	)
 	if err != nil {
 		return err
 	}
 
 	fmt.Printf(
-		"user approved: id=%s hostname=%s\n",
-		user.ID,
-		user.Hostname,
+		"\nuser approved: id=%s hostname=%s\n",
+		approvedUser.ID,
+		approvedUser.Hostname,
 	)
 
 	return nil
+}
+
+func readSelection(
+	prompt string,
+	max int,
+) (int, error) {
+	for {
+		fmt.Print(prompt)
+
+		var input int
+
+		if _, err := fmt.Scanln(&input); err != nil {
+			return 0, fmt.Errorf(
+				"read selection: %w",
+				err,
+			)
+		}
+
+		if input < 1 || input > max {
+			fmt.Printf(
+				"invalid selection, choose 1-%d\n",
+				max,
+			)
+
+			continue
+		}
+
+		return input - 1, nil
+	}
 }

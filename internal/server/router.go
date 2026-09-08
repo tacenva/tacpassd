@@ -152,6 +152,13 @@ func registerAccessControlRoutes(
 	)
 
 	mux.Handle(
+		"PATCH /access-control/{id}/name",
+		authMiddleware.Authenticate(
+			http.HandlerFunc(handler.ChangeName),
+		),
+	)
+
+	mux.Handle(
 		"PATCH /access-control/{id}/privilege",
 		authMiddleware.Authenticate(
 			http.HandlerFunc(handler.ChangePrivilege),

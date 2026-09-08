@@ -23,7 +23,12 @@ func NewHandler(
 }
 
 type createRequest struct {
+	Name      string           `json:"name"`
 	Privilege entity.Privilege `json:"privilege"`
+}
+
+type changeNameRequest struct {
+	Name string `json:"name"`
 }
 
 type changePrivilegeRequest struct {
@@ -105,6 +110,7 @@ func (h *Handler) Create(
 	}
 
 	permission, keypair, err := h.accesscontrolService.Create(
+		request.Name,
 		request.Privilege,
 	)
 	if err != nil {
@@ -129,6 +135,35 @@ func (h *Handler) Create(
 		http.StatusCreated,
 		response,
 	)
+}
+
+func (h *Handler) ChangeName(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	id := strings.TrimSpace(r.PathValue("id"))
+
+	if id == "" {
+		http.Error(w, "access control id is required", http.StatusBadRequest)
+		return
+	}
+
+	var request changeNameRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.accesscontrolService.ChangeName(
+		id,
+		request.Name,
+	); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) ChangePrivilege(
