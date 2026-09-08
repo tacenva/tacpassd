@@ -202,3 +202,27 @@ func (s *Service) checkAccess(
 
 	return nil
 }
+
+func (s *Service) OutOfSync(
+	authUser *entity.User,
+	vaultID string,
+	replicaHashVal string,
+) (bool, error) {
+	vaultID = strings.TrimSpace(vaultID)
+
+	if vaultID == "" {
+		return false, ErrForbidden
+	}
+
+	fileDB, err := s.tacenvaDB.RawFile(vaultID)
+	if err != nil {
+		return false, err
+	}
+
+	same, err := fileDB.CompareHash(replicaHashVal)
+	if err != nil {
+		return false, err
+	}
+
+	return !same, nil
+}

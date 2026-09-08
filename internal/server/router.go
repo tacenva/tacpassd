@@ -71,6 +71,15 @@ func registerVaultRoutes(
 	)
 
 	mux.Handle(
+		"GET /vault/{vaultID}/out-of-sync",
+		authMiddleware.Authenticate(
+			http.HandlerFunc(
+				vaultHandler.OutOfSync,
+			),
+		),
+	)
+
+	mux.Handle(
 		"POST /vault/{vaultID}/record",
 		authMiddleware.Authenticate(
 			http.HandlerFunc(

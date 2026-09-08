@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 
 	"github.com/tacenva/database"
 	tacpass_core "github.com/tacenva/tacpass-core"
@@ -172,8 +171,6 @@ func serve(
 	var handler http.Handler = router
 
 	handler = middleware.Debug(handler)
-	// if debug {
-	// }
 
 	if err := ensureTLS(cfg); err != nil {
 		return err
@@ -181,7 +178,7 @@ func serve(
 
 	httpServer := server.New(
 		fmt.Sprintf("0.0.0.0:%d", cfg.Server.Port),
-		router,
+		handler,
 	)
 
 	return httpServer.Run(
@@ -191,12 +188,6 @@ func serve(
 }
 
 func ensureTLS(cfg *config.Config) error {
-	if _, err := os.Stat(cfg.Path(cfg.TLS.CertFile)); err == nil {
-		if _, err := os.Stat(cfg.Path(cfg.TLS.KeyFile)); err == nil {
-			return nil
-		}
-	}
-
 	if err := tls.GenerateSelfSignedCert(
 		cfg.Path(cfg.TLS.CertFile),
 		cfg.Path(cfg.TLS.KeyFile),

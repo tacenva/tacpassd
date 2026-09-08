@@ -468,6 +468,76 @@ func (h *Handler) DeleteRecord(
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *Handler) OutOfSync(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if r.Method != http.MethodGet {
+		http.Error(
+			w,
+			"method not allowed",
+			http.StatusMethodNotAllowed,
+		)
+		return
+	}
+
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(
+			w,
+			"unauthorized",
+			http.StatusUnauthorized,
+		)
+		return
+	}
+
+	vaultID, ok := getVaultID(r)
+	if !ok {
+		http.Error(
+			w,
+			"vault id is required",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	replicaHashVal := strings.TrimSpace(
+		r.URL.Query().Get("hash"),
+	)
+
+	if replicaHashVal == "" {
+		http.Error(
+			w,
+			"hash is required",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	outOfSync, err := h.vaultService.OutOfSync(
+		authUser,
+		vaultID,
+		replicaHashVal,
+	)
+	if err != nil {
+		h.handleServiceError(w, err)
+		return
+	}
+
+	w.Header().Set(
+		"Content-Type",
+		"application/json",
+	)
+
+	w.WriteHeader(http.StatusOK)
+
+	_ = json.NewEncoder(w).Encode(
+		map[string]bool{
+			"out_of_sync": outOfSync,
+		},
+	)
+}
+
 func (h *Handler) handleServiceError(
 	w http.ResponseWriter,
 	err error,

@@ -23,7 +23,16 @@ func GenerateSelfSignedCert(certFile, keyFile string) error {
 		return fmt.Errorf("key file is required")
 	}
 
-	if err := os.MkdirAll(filepath.Dir(certFile), 0755); err != nil {
+	// Keep the existing certificate/key.
+	//
+	// This is important for TOFU. The TUI pins the server's
+	// public key, so generating a new key on every daemon start
+	// would invalidate the trust relationship.
+	if fileExists(certFile) && fileExists(keyFile) {
+		return nil
+	}
+
+	if err := os.MkdirAll(filepath.Dir(certFile), 0700); err != nil {
 		return fmt.Errorf("create cert directory: %w", err)
 	}
 
@@ -96,10 +105,27 @@ func GenerateSelfSignedCert(certFile, keyFile string) error {
 		return fmt.Errorf("create certificate: %w", err)
 	}
 
+	if err := writeCertificate(certFile, certDER); err != nil {
+		return err
+	}
+
+	keyDER, err := x509.MarshalPKCS8PrivateKey(privateKey)
+	if err != nil {
+		return fmt.Errorf("marshal private key: %w", err)
+	}
+
+	if err := writePrivateKey(keyFile, keyDER); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func writeCertificate(path string, der []byte) error {
 	certOut, err := os.OpenFile(
-		certFile,
+		path,
 		os.O_WRONLY|os.O_CREATE|os.O_TRUNC,
-		0644,
+		0600,
 	)
 	if err != nil {
 		return fmt.Errorf("create certificate file: %w", err)
@@ -110,19 +136,18 @@ func GenerateSelfSignedCert(certFile, keyFile string) error {
 		certOut,
 		&pem.Block{
 			Type:  "CERTIFICATE",
-			Bytes: certDER,
+			Bytes: der,
 		},
 	); err != nil {
 		return fmt.Errorf("write certificate: %w", err)
 	}
 
-	keyDER, err := x509.MarshalPKCS8PrivateKey(privateKey)
-	if err != nil {
-		return fmt.Errorf("marshal private key: %w", err)
-	}
+	return nil
+}
 
+func writePrivateKey(path string, der []byte) error {
 	keyOut, err := os.OpenFile(
-		keyFile,
+		path,
 		os.O_WRONLY|os.O_CREATE|os.O_TRUNC,
 		0600,
 	)
@@ -135,13 +160,22 @@ func GenerateSelfSignedCert(certFile, keyFile string) error {
 		keyOut,
 		&pem.Block{
 			Type:  "PRIVATE KEY",
-			Bytes: keyDER,
+			Bytes: der,
 		},
 	); err != nil {
 		return fmt.Errorf("write private key: %w", err)
 	}
 
 	return nil
+}
+
+func fileExists(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+
+	return !info.IsDir()
 }
 
 func getPrivateIPs() ([]net.IP, error) {
