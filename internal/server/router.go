@@ -54,14 +54,23 @@ func (r *Router) registerAuthRoutes(
 func (r *Router) registerVaultRoutes(
 	handler *vault.Handler,
 ) {
-	r.handle(
-		"GET /vault",
-		handler.VaultAccessList,
-	)
+	// r.handle(
+	// 	"GET /vault",
+	// 	handler.VaultAccessList,
+	// )
 
 	r.handle(
 		"POST /vault",
 		handler.CreateVault,
+	)
+	r.handle(
+		"POST /vault/sync/check",
+		handler.CheckVaultSync,
+	)
+
+	r.handle(
+		"POST /vault/sync",
+		handler.VaultSync,
 	)
 
 	r.handle(

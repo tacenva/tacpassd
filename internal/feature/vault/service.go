@@ -1,29 +1,95 @@
 package vault
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"fmt"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/tacenva/database"
 	"github.com/tacenva/tacpass-core/entity"
+	vaultCore "github.com/tacenva/tacpass-core/vault"
 	"github.com/tacenva/tacpass-core/vaultaccess"
 )
 
 var ErrForbidden = errors.New("forbidden")
 
 type Service struct {
-	tacenvaDB *database.DB
-	vaService *vaultaccess.Service
+	tacenvaDB        *database.DB
+	vaService        *vaultaccess.Service
+	vaultCoreService *vaultCore.Service
 }
 
 func NewService(
 	tacenvaDB *database.DB,
 	vaService *vaultaccess.Service,
+	vaultCoreService *vaultCore.Service,
 ) *Service {
 	return &Service{
-		tacenvaDB: tacenvaDB,
-		vaService: vaService,
+		tacenvaDB:        tacenvaDB,
+		vaService:        vaService,
+		vaultCoreService: vaultCoreService,
 	}
+}
+
+func (s *Service) vaultAccessHash(
+	vaultAccessList []entity.VaultAccess,
+) string {
+	items := make([]string, 0, len(vaultAccessList))
+
+	for _, access := range vaultAccessList {
+		items = append(
+			items,
+			fmt.Sprintf(
+				"%s:%s",
+				access.VaultID,
+				access.Vault.UpdatedAt.UTC().Format(time.RFC3339Nano),
+			),
+		)
+	}
+
+	sort.Strings(items)
+
+	hash := sha256.Sum256(
+		[]byte(strings.Join(items, "|")),
+	)
+
+	return hex.EncodeToString(hash[:])
+}
+
+func (s *Service) CheckVaultSync(
+	authUser *entity.User,
+	replicaVaultHash string,
+) (bool, error) {
+	vaultAccessList, err := s.vaultCoreService.VaultAccessList(authUser)
+	if err != nil {
+		return false, err
+	}
+
+	serverVaultHash := s.vaultAccessHash(vaultAccessList)
+
+	return replicaVaultHash != serverVaultHash, nil
+}
+
+func (s *Service) VaultSync(
+	authUser *entity.User,
+	replicaVaultHash string,
+) ([]entity.VaultAccess, bool, string, error) {
+	vaultAccessList, err := s.vaultCoreService.VaultAccessList(authUser)
+	if err != nil {
+		return nil, false, "", err
+	}
+
+	serverVaultHash := s.vaultAccessHash(vaultAccessList)
+
+	if replicaVaultHash != serverVaultHash {
+		return vaultAccessList, true, serverVaultHash, nil
+	}
+
+	return nil, false, "", nil
 }
 
 // CreateRecord menyimpan encrypted record ke vault.

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/tacenva/database"
+	"github.com/tacenva/tacpass-core/entity"
 	VaultServiceCore "github.com/tacenva/tacpass-core/vault"
 	"github.com/tacenva/tacpass-core/vaultaccess"
 	"github.com/tacenva/tacpassd/internal/middleware"
@@ -28,15 +29,63 @@ func NewHandler(
 		vaultService: NewService(
 			tacenvaDB,
 			vaultaccessService,
+			vaultServiceCore,
 		),
 	}
 }
 
-func (h *Handler) VaultAccessList(
+// func (h *Handler) VaultAccessList(
+// 	w http.ResponseWriter,
+// 	r *http.Request,
+// ) {
+// 	if r.Method != http.MethodGet {
+// 		http.Error(
+// 			w,
+// 			"method not allowed",
+// 			http.StatusMethodNotAllowed,
+// 		)
+// 		return
+// 	}
+
+// 	authUser := middleware.GetAuthUser(r)
+// 	if authUser == nil {
+// 		http.Error(
+// 			w,
+// 			"unauthorized",
+// 			http.StatusUnauthorized,
+// 		)
+// 		return
+// 	}
+
+// 	vaultList, err := h.vaultServiceCore.VaultAccessList(
+// 		authUser,
+// 	)
+// 	if err != nil {
+// 		http.Error(
+// 			w,
+// 			"failed to get vault list",
+// 			http.StatusInternalServerError,
+// 		)
+// 		return
+// 	}
+
+// 	w.Header().Set(
+// 		"Content-Type",
+// 		"application/json",
+// 	)
+
+// 	w.WriteHeader(http.StatusOK)
+
+// 	_ = json.NewEncoder(w).Encode(
+// 		vaultList,
+// 	)
+// }
+
+func (h *Handler) CheckVaultSync(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	if r.Method != http.MethodGet {
+	if r.Method != http.MethodPost {
 		http.Error(
 			w,
 			"method not allowed",
@@ -55,15 +104,38 @@ func (h *Handler) VaultAccessList(
 		return
 	}
 
-	vaultList, err := h.vaultServiceCore.VaultAccessList(
-		authUser,
-	)
-	if err != nil {
+	var request struct {
+		ReplicaVaultHash string `json:"replica_vault_hash"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		http.Error(
 			w,
-			"failed to get vault list",
-			http.StatusInternalServerError,
+			"invalid request body",
+			http.StatusBadRequest,
 		)
+		return
+	}
+
+	request.ReplicaVaultHash = strings.TrimSpace(
+		request.ReplicaVaultHash,
+	)
+
+	if request.ReplicaVaultHash == "" {
+		http.Error(
+			w,
+			"replica vault hash is required",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	needSync, err := h.vaultService.CheckVaultSync(
+		authUser,
+		request.ReplicaVaultHash,
+	)
+	if err != nil {
+		h.handleServiceError(w, err)
 		return
 	}
 
@@ -75,7 +147,81 @@ func (h *Handler) VaultAccessList(
 	w.WriteHeader(http.StatusOK)
 
 	_ = json.NewEncoder(w).Encode(
-		vaultList,
+		struct {
+			NeedSync bool `json:"need_sync"`
+		}{
+			NeedSync: needSync,
+		},
+	)
+}
+
+func (h *Handler) VaultSync(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if r.Method != http.MethodPost {
+		http.Error(
+			w,
+			"method not allowed",
+			http.StatusMethodNotAllowed,
+		)
+		return
+	}
+
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(
+			w,
+			"unauthorized",
+			http.StatusUnauthorized,
+		)
+		return
+	}
+
+	var request struct {
+		ReplicaVaultHash string `json:"replica_vault_hash"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(
+			w,
+			"invalid request body",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	request.ReplicaVaultHash = strings.TrimSpace(
+		request.ReplicaVaultHash,
+	)
+
+	vaultAccessList, needSync, serverVaultHash, err :=
+		h.vaultService.VaultSync(
+			authUser,
+			request.ReplicaVaultHash,
+		)
+	if err != nil {
+		h.handleServiceError(w, err)
+		return
+	}
+
+	w.Header().Set(
+		"Content-Type",
+		"application/json",
+	)
+
+	w.WriteHeader(http.StatusOK)
+
+	_ = json.NewEncoder(w).Encode(
+		struct {
+			NeedSync        bool                 `json:"need_sync"`
+			ServerVaultHash string               `json:"server_vault_hash"`
+			VaultAccessList []entity.VaultAccess `json:"vault_access_list,omitempty"`
+		}{
+			NeedSync:        needSync,
+			ServerVaultHash: serverVaultHash,
+			VaultAccessList: vaultAccessList,
+		},
 	)
 }
 
