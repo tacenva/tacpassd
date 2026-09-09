@@ -34,53 +34,6 @@ func NewHandler(
 	}
 }
 
-// func (h *Handler) VaultAccessList(
-// 	w http.ResponseWriter,
-// 	r *http.Request,
-// ) {
-// 	if r.Method != http.MethodGet {
-// 		http.Error(
-// 			w,
-// 			"method not allowed",
-// 			http.StatusMethodNotAllowed,
-// 		)
-// 		return
-// 	}
-
-// 	authUser := middleware.GetAuthUser(r)
-// 	if authUser == nil {
-// 		http.Error(
-// 			w,
-// 			"unauthorized",
-// 			http.StatusUnauthorized,
-// 		)
-// 		return
-// 	}
-
-// 	vaultList, err := h.vaultServiceCore.VaultAccessList(
-// 		authUser,
-// 	)
-// 	if err != nil {
-// 		http.Error(
-// 			w,
-// 			"failed to get vault list",
-// 			http.StatusInternalServerError,
-// 		)
-// 		return
-// 	}
-
-// 	w.Header().Set(
-// 		"Content-Type",
-// 		"application/json",
-// 	)
-
-// 	w.WriteHeader(http.StatusOK)
-
-// 	_ = json.NewEncoder(w).Encode(
-// 		vaultList,
-// 	)
-// }
-
 func (h *Handler) CheckVaultSync(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -477,11 +430,11 @@ func (h *Handler) CreateRecord(
 	)
 }
 
-func (h *Handler) GetRecord(
+func (h *Handler) CheckRecordBlob(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	if r.Method != http.MethodGet {
+	if r.Method != http.MethodPost {
 		http.Error(
 			w,
 			"method not allowed",
@@ -510,20 +463,81 @@ func (h *Handler) GetRecord(
 		return
 	}
 
-	recordID, ok := getRecordID(r)
-	if !ok {
+	var request struct {
+		ReplicaVersion uint64 `json:"replica_version"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		http.Error(
 			w,
-			"record id is required",
+			"invalid request body",
 			http.StatusBadRequest,
 		)
 		return
 	}
 
-	data, err := h.vaultService.GetRecord(
+	needSync, err := h.vaultService.CheckRecordSync(
 		authUser,
 		vaultID,
-		recordID,
+		request.ReplicaVersion,
+	)
+	if err != nil {
+		h.handleServiceError(w, err)
+		return
+	}
+
+	w.Header().Set(
+		"Content-Type",
+		"application/json",
+	)
+
+	w.WriteHeader(http.StatusOK)
+
+	_ = json.NewEncoder(w).Encode(
+		struct {
+			NeedSync bool `json:"need_sync"`
+		}{
+			NeedSync: needSync,
+		},
+	)
+}
+
+func (h *Handler) RecordBlob(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if r.Method != http.MethodPost {
+		http.Error(
+			w,
+			"method not allowed",
+			http.StatusMethodNotAllowed,
+		)
+		return
+	}
+
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(
+			w,
+			"unauthorized",
+			http.StatusUnauthorized,
+		)
+		return
+	}
+
+	vaultID, ok := getVaultID(r)
+	if !ok {
+		http.Error(
+			w,
+			"vault id is required",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	data, err := h.vaultService.RecordSync(
+		authUser,
+		vaultID,
 	)
 	if err != nil {
 		h.handleServiceError(w, err)
@@ -538,62 +552,6 @@ func (h *Handler) GetRecord(
 	w.WriteHeader(http.StatusOK)
 
 	_, _ = w.Write(data)
-}
-
-func (h *Handler) GetAllRecord(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-	if r.Method != http.MethodGet {
-		http.Error(
-			w,
-			"method not allowed",
-			http.StatusMethodNotAllowed,
-		)
-		return
-	}
-
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
-		http.Error(
-			w,
-			"unauthorized",
-			http.StatusUnauthorized,
-		)
-		return
-	}
-
-	vaultID, ok := getVaultID(r)
-	if !ok {
-		http.Error(
-			w,
-			"vault id is required",
-			http.StatusBadRequest,
-		)
-		return
-	}
-
-	records, err := h.vaultService.GetAllRecord(
-		authUser,
-		vaultID,
-	)
-	if err != nil {
-		h.handleServiceError(w, err)
-		return
-	}
-
-	// []byte akan otomatis di-encode sebagai base64 oleh encoding/json.
-	// Ini hanya transport encoding, bukan encryption.
-	w.Header().Set(
-		"Content-Type",
-		"application/json",
-	)
-
-	w.WriteHeader(http.StatusOK)
-
-	_ = json.NewEncoder(w).Encode(
-		records,
-	)
 }
 
 func (h *Handler) UpdateRecord(

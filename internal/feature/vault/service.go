@@ -116,6 +116,7 @@ func (s *Service) CreateRecord(
 	}
 
 	fileDB, err := s.tacenvaDB.RawFile(vaultID)
+
 	if err != nil {
 		return "", err
 	}
@@ -123,40 +124,33 @@ func (s *Service) CreateRecord(
 	return fileDB.Insert(data)
 }
 
-// GetRecord mengambil encrypted record berdasarkan ID.
-//
-// Data dikembalikan apa adanya tanpa decrypt.
-func (s *Service) GetRecord(
+func (s *Service) CheckRecordSync(
 	authUser *entity.User,
 	vaultID string,
-	recordID string,
-) ([]byte, error) {
+	replicaVersion uint64,
+) (bool, error) {
 	vaultID = strings.TrimSpace(vaultID)
-	recordID = strings.TrimSpace(recordID)
 
-	if vaultID == "" || recordID == "" {
-		return nil, ErrForbidden
+	if vaultID == "" {
+		return false, ErrForbidden
 	}
 
 	if err := s.checkAccess(authUser, vaultID); err != nil {
-		return nil, err
+		return false, err
 	}
 
-	fileDB, err := s.tacenvaDB.RawFile(vaultID)
+	sotVersion, err := s.tacenvaDB.GetVersion(vaultID)
 	if err != nil {
-		return nil, err
+		return false, err
 	}
 
-	return fileDB.Find(recordID)
+	return replicaVersion != sotVersion, nil
 }
 
-// GetAllRecord mengambil seluruh encrypted record dalam vault.
-//
-// Data dikembalikan apa adanya tanpa decrypt.
-func (s *Service) GetAllRecord(
+func (s *Service) RecordSync(
 	authUser *entity.User,
 	vaultID string,
-) (map[string][]byte, error) {
+) ([]byte, error) {
 	vaultID = strings.TrimSpace(vaultID)
 
 	if vaultID == "" {
@@ -167,12 +161,7 @@ func (s *Service) GetAllRecord(
 		return nil, err
 	}
 
-	fileDB, err := s.tacenvaDB.RawFile(vaultID)
-	if err != nil {
-		return nil, err
-	}
-
-	return fileDB.FindAll()
+	return s.tacenvaDB.Read(vaultID)
 }
 
 // UpdateRecord mengganti encrypted data berdasarkan ID.
