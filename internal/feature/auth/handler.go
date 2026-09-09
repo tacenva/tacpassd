@@ -19,8 +19,9 @@ type EnrollRequest struct {
 }
 
 type EnrollResponse struct {
-	Status    string `json:"status"`
-	AuthToken string `json:"auth_token"`
+	SoTHostname string `json:"sot_hostname"`
+	Status      string `json:"status"`
+	AuthToken   string `json:"auth_token"`
 }
 
 func NewHandler(
@@ -83,7 +84,7 @@ func (h *Handler) Enroll(
 		return
 	}
 
-	authToken, err := h.authService.Enroll(
+	sotHostname, authToken, err := h.authService.Enroll(
 		request.Hostname,
 		request.PublicKey,
 		entity.UserStatusPending,
@@ -98,8 +99,9 @@ func (h *Handler) Enroll(
 	}
 
 	response := EnrollResponse{
-		Status:    "pending",
-		AuthToken: authToken,
+		Status:      "pending",
+		AuthToken:   authToken,
+		SoTHostname: sotHostname,
 	}
 
 	w.Header().Set(
@@ -111,72 +113,3 @@ func (h *Handler) Enroll(
 
 	_ = json.NewEncoder(w).Encode(response)
 }
-
-// func (h *Handler) GetStatus(
-// 	w http.ResponseWriter,
-// 	r *http.Request,
-// ) {
-// 	if r.Method != http.MethodGet {
-// 		http.Error(
-// 			w,
-// 			"method not allowed",
-// 			http.StatusMethodNotAllowed,
-// 		)
-// 		return
-// 	}
-
-// 	authHeader := r.Header.Get("Authorization")
-
-// 	if authHeader == "" {
-// 		http.Error(
-// 			w,
-// 			"authorization header is required",
-// 			http.StatusUnauthorized,
-// 		)
-// 		return
-// 	}
-
-// 	const bearerPrefix = "Bearer "
-
-// 	if !strings.HasPrefix(
-// 		authHeader,
-// 		bearerPrefix,
-// 	) {
-// 		http.Error(
-// 			w,
-// 			"invalid authorization header",
-// 			http.StatusUnauthorized,
-// 		)
-// 		return
-// 	}
-
-// 	token := strings.TrimSpace(
-// 		strings.TrimPrefix(
-// 			authHeader,
-// 			bearerPrefix,
-// 		),
-// 	)
-
-// 	if token == "" {
-// 		http.Error(
-// 			w,
-// 			"bearer token is required",
-// 			http.StatusUnauthorized,
-// 		)
-// 		return
-// 	}
-
-// 	err := h.authService.GetStatus(
-// 		token,
-// 	)
-// 	if err != nil {
-// 		http.Error(
-// 			w,
-// 			"failed to get authentication status",
-// 			http.StatusUnauthorized,
-// 		)
-// 		return
-// 	}
-
-// 	w.WriteHeader(http.StatusOK)
-// }

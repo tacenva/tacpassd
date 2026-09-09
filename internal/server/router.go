@@ -9,187 +9,142 @@ import (
 	"github.com/tacenva/tacpassd/internal/middleware"
 )
 
+type Router struct {
+	mux            *http.ServeMux
+	authMiddleware *middleware.Auth
+}
+
 func NewRouter(
 	authMiddleware *middleware.Auth,
 	authHandler *auth.Handler,
 	accessControlHandler *accesscontrol.Handler,
 	vaultHandler *vault.Handler,
 ) http.Handler {
-	mux := http.NewServeMux()
+	router := &Router{
+		mux:            http.NewServeMux(),
+		authMiddleware: authMiddleware,
+	}
 
-	registerAuthRoutes(
-		mux,
-		authHandler,
-	)
+	router.registerAuthRoutes(authHandler)
+	router.registerAccessControlRoutes(accessControlHandler)
+	router.registerVaultRoutes(vaultHandler)
 
-	registerAccessControlRoutes(
-		mux,
-		authMiddleware,
-		accessControlHandler,
-	)
-
-	registerVaultRoutes(
-		mux,
-		authMiddleware,
-		vaultHandler,
-	)
-
-	return mux
+	return router.mux
 }
 
-func registerAuthRoutes(
-	mux *http.ServeMux,
-	authHandler *auth.Handler,
+func (r *Router) handle(
+	pattern string,
+	handler http.HandlerFunc,
 ) {
-	mux.HandleFunc(
+	r.mux.Handle(
+		pattern,
+		r.authMiddleware.Authenticate(handler),
+	)
+}
+
+func (r *Router) registerAuthRoutes(
+	handler *auth.Handler,
+) {
+	r.mux.HandleFunc(
 		"POST /auth/enroll",
-		authHandler.Enroll,
+		handler.Enroll,
 	)
 }
 
-func registerVaultRoutes(
-	mux *http.ServeMux,
-	authMiddleware *middleware.Auth,
-	vaultHandler *vault.Handler,
+func (r *Router) registerVaultRoutes(
+	handler *vault.Handler,
 ) {
-	mux.Handle(
+	r.handle(
 		"GET /vault",
-		authMiddleware.Authenticate(
-			http.HandlerFunc(
-				vaultHandler.VaultAccessList,
-			),
-		),
+		handler.VaultAccessList,
 	)
 
-	mux.Handle(
+	r.handle(
 		"POST /vault",
-		authMiddleware.Authenticate(
-			http.HandlerFunc(
-				vaultHandler.CreateVault,
-			),
-		),
+		handler.CreateVault,
 	)
 
-	mux.Handle(
-		"GET /vault/{vaultID}/out-of-sync",
-		authMiddleware.Authenticate(
-			http.HandlerFunc(
-				vaultHandler.OutOfSync,
-			),
-		),
+	r.handle(
+		"PUT /vault/{vaultID}",
+		handler.UpdateVault,
 	)
 
-	mux.Handle(
+	r.handle(
+		"DELETE /vault/{vaultID}",
+		handler.DeleteVault,
+	)
+
+	r.handle(
 		"POST /vault/{vaultID}/record",
-		authMiddleware.Authenticate(
-			http.HandlerFunc(
-				vaultHandler.CreateRecord,
-			),
-		),
+		handler.CreateRecord,
 	)
 
-	mux.Handle(
+	r.handle(
 		"GET /vault/{vaultID}/record",
-		authMiddleware.Authenticate(
-			http.HandlerFunc(
-				vaultHandler.GetAllRecord,
-			),
-		),
+		handler.GetAllRecord,
 	)
 
-	mux.Handle(
+	r.handle(
 		"GET /vault/{vaultID}/record/{recordID}",
-		authMiddleware.Authenticate(
-			http.HandlerFunc(
-				vaultHandler.GetRecord,
-			),
-		),
+		handler.GetRecord,
 	)
 
-	mux.Handle(
+	r.handle(
 		"PUT /vault/{vaultID}/record/{recordID}",
-		authMiddleware.Authenticate(
-			http.HandlerFunc(
-				vaultHandler.UpdateRecord,
-			),
-		),
+		handler.UpdateRecord,
 	)
 
-	mux.Handle(
+	r.handle(
 		"DELETE /vault/{vaultID}/record/{recordID}",
-		authMiddleware.Authenticate(
-			http.HandlerFunc(
-				vaultHandler.DeleteRecord,
-			),
-		),
+		handler.DeleteRecord,
 	)
 }
 
-func registerAccessControlRoutes(
-	mux *http.ServeMux,
-	authMiddleware *middleware.Auth,
+func (r *Router) registerAccessControlRoutes(
 	handler *accesscontrol.Handler,
 ) {
-	mux.Handle(
+	r.handle(
 		"GET /access-control",
-		authMiddleware.Authenticate(
-			http.HandlerFunc(handler.List),
-		),
+		handler.List,
 	)
 
-	mux.Handle(
+	r.handle(
 		"GET /access-control/{id}",
-		authMiddleware.Authenticate(
-			http.HandlerFunc(handler.Get),
-		),
+		handler.Get,
 	)
 
-	mux.Handle(
+	r.handle(
 		"POST /access-control",
-		authMiddleware.Authenticate(
-			http.HandlerFunc(handler.Create),
-		),
+		handler.Create,
 	)
 
-	mux.Handle(
+	r.handle(
 		"PATCH /access-control/{id}/name",
-		authMiddleware.Authenticate(
-			http.HandlerFunc(handler.ChangeName),
-		),
+		handler.ChangeName,
 	)
 
-	mux.Handle(
+	r.handle(
 		"PATCH /access-control/{id}/privilege",
-		authMiddleware.Authenticate(
-			http.HandlerFunc(handler.ChangePrivilege),
-		),
+		handler.ChangePrivilege,
 	)
 
-	mux.Handle(
+	r.handle(
 		"DELETE /access-control/{id}",
-		authMiddleware.Authenticate(
-			http.HandlerFunc(handler.Revoke),
-		),
+		handler.Revoke,
 	)
 
-	mux.Handle(
+	r.handle(
 		"GET /access-control/{id}/users",
-		authMiddleware.Authenticate(
-			http.HandlerFunc(handler.UserList),
-		),
+		handler.UserList,
 	)
 
-	mux.Handle(
+	r.handle(
 		"POST /access-control/users/{userId}/approve",
-		authMiddleware.Authenticate(
-			http.HandlerFunc(handler.ApproveUser),
-		),
+		handler.ApproveUser,
 	)
 
-	mux.Handle(
+	r.handle(
 		"POST /access-control/users/{userId}/revoke",
-		authMiddleware.Authenticate(
-			http.HandlerFunc(handler.RevokeUser),
-		),
+		handler.RevokeUser,
 	)
 }
