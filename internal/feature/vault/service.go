@@ -115,16 +115,16 @@ func (s *Service) CreateRecord(
 		return "", err
 	}
 
-	fileDB, err := s.tacenvaDB.RawFile(vaultID)
+	fileDB, err := s.tacenvaDB.NewRawFile(vaultID)
 
 	if err != nil {
 		return "", err
 	}
 
-	return fileDB.Insert(data)
+	return fileDB.InsertRaw(data)
 }
 
-func (s *Service) CheckRecordSync(
+func (s *Service) CheckRecordBlob(
 	authUser *entity.User,
 	vaultID string,
 	replicaVersion uint64,
@@ -147,7 +147,7 @@ func (s *Service) CheckRecordSync(
 	return replicaVersion != sotVersion, nil
 }
 
-func (s *Service) RecordSync(
+func (s *Service) RecordBlob(
 	authUser *entity.User,
 	vaultID string,
 ) ([]byte, error) {
@@ -189,12 +189,12 @@ func (s *Service) UpdateRecord(
 		return err
 	}
 
-	fileDB, err := s.tacenvaDB.RawFile(vaultID)
+	fileDB, err := s.tacenvaDB.NewRawFile(vaultID)
 	if err != nil {
 		return err
 	}
 
-	return fileDB.Update(
+	return fileDB.UpdateRaw(
 		recordID,
 		data,
 	)
@@ -217,12 +217,12 @@ func (s *Service) DeleteRecord(
 		return err
 	}
 
-	fileDB, err := s.tacenvaDB.RawFile(vaultID)
+	fileDB, err := s.tacenvaDB.NewRawFile(vaultID)
 	if err != nil {
 		return err
 	}
 
-	return fileDB.Delete(recordID)
+	return fileDB.DeleteRaw(recordID)
 }
 
 // checkAccess memastikan user mempunyai akses ke vault.

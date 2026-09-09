@@ -476,7 +476,7 @@ func (h *Handler) CheckRecordBlob(
 		return
 	}
 
-	needSync, err := h.vaultService.CheckRecordSync(
+	needSync, err := h.vaultService.CheckRecordBlob(
 		authUser,
 		vaultID,
 		request.ReplicaVersion,
@@ -535,7 +535,7 @@ func (h *Handler) RecordBlob(
 		return
 	}
 
-	data, err := h.vaultService.RecordSync(
+	data, err := h.vaultService.RecordBlob(
 		authUser,
 		vaultID,
 	)
