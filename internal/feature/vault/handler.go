@@ -121,15 +121,6 @@ func (h *Handler) CheckVaultSync(
 		request.ReplicaVaultHash,
 	)
 
-	if request.ReplicaVaultHash == "" {
-		http.Error(
-			w,
-			"replica vault hash is required",
-			http.StatusBadRequest,
-		)
-		return
-	}
-
 	needSync, err := h.vaultService.CheckVaultSync(
 		authUser,
 		request.ReplicaVaultHash,
