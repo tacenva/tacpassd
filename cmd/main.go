@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -8,8 +9,8 @@ import (
 
 	"github.com/tacenva/database"
 	"github.com/tacenva/tacpass-core/app"
+	"github.com/tacenva/tacpass-core/config"
 	"github.com/tacenva/tacpass-core/entity"
-	"github.com/tacenva/tacpassd/internal/config"
 	"github.com/tacenva/tacpassd/internal/feature/accesscontrol"
 	"github.com/tacenva/tacpassd/internal/feature/auth"
 	"github.com/tacenva/tacpassd/internal/feature/vault"
@@ -21,10 +22,10 @@ import (
 )
 
 func main() {
-	addAdmin := flag.String(
-		"add-admin",
+	initAdmin := flag.String(
+		"init-admin",
 		"",
-		"add permission with admin privilege",
+		"init permission with admin privilege",
 	)
 
 	approve := flag.Bool(
@@ -60,10 +61,10 @@ func main() {
 		tacenvaDB,
 	)
 
-	if *addAdmin != "" {
-		if err := addAdminPrivilege(
+	if *initAdmin != "" {
+		if err := initAdminPrivilege(
 			services,
-			*addAdmin,
+			*initAdmin,
 		); err != nil {
 			log.Fatal(err)
 		}
@@ -173,10 +174,17 @@ func OpenSQLite(
 	return db, nil
 }
 
-func addAdminPrivilege(
+func initAdminPrivilege(
 	services *app.Services,
 	name string,
 ) error {
+	adminExists, err := services.Permission.AdminExists()
+	if err != nil {
+		return err
+	} else if adminExists {
+		return errors.New("admin was initialized")
+	}
+
 	_, keypair, err := services.Permission.Create(
 		name,
 		entity.PrivilegeAdmin,
