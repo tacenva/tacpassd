@@ -147,7 +147,7 @@ func (h *Handler) Create(
 		return
 	}
 
-	permission, keypair, err := h.accesscontrolService.Create(
+	vaultaccesslist, permission, keypair, err := h.accesscontrolService.Create(
 		authUser,
 		request.Name,
 		request.Privilege,
@@ -158,11 +158,13 @@ func (h *Handler) Create(
 	}
 
 	response := struct {
-		Permission *entity.Permission `json:"permission"`
-		KeyPair    *keyring.KeyPair   `json:"keypair"`
+		VaultAccessList []entity.VaultAccess `json:"vault_access"`
+		Permission      *entity.Permission   `json:"permission"`
+		KeyPair         *keyring.KeyPair     `json:"keypair"`
 	}{
-		Permission: permission,
-		KeyPair:    keypair,
+		VaultAccessList: vaultaccesslist,
+		Permission:      permission,
+		KeyPair:         keypair,
 	}
 
 	writeJSON(
@@ -495,4 +497,80 @@ func writeJSON(
 	w.WriteHeader(status)
 
 	_ = json.NewEncoder(w).Encode(data)
+}
+
+func (h *Handler) DeletePermission(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(
+			w,
+			"unauthorized",
+			http.StatusUnauthorized,
+		)
+		return
+	}
+
+	permissionID := strings.TrimSpace(
+		r.PathValue("id"),
+	)
+
+	if permissionID == "" {
+		http.Error(
+			w,
+			"id is required",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	if err := h.accesscontrolService.DeletePermission(
+		authUser,
+		permissionID,
+	); err != nil {
+		h.handleServiceError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) GrantPrivilege(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(
+			w,
+			"unauthorized",
+			http.StatusUnauthorized,
+		)
+		return
+	}
+
+	var vaultAccessList []entity.VaultAccess
+
+	if err := json.NewDecoder(r.Body).Decode(
+		&vaultAccessList,
+	); err != nil {
+		http.Error(
+			w,
+			"invalid request body",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	if err := h.accesscontrolService.GrantPrivilege(
+		authUser,
+		vaultAccessList,
+	); err != nil {
+		h.handleServiceError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }

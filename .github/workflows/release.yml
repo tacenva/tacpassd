@@ -56,7 +56,7 @@ jobs:
             -trimpath \
             -ldflags="-s -w" \
             -o "dist/${NAME}" \
-            ./cmd
+            ./cmd/tacpassd
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

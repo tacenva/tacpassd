@@ -1,14 +1,13 @@
-package main
+package app
 
 import (
 	"errors"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 
 	"github.com/tacenva/database"
-	"github.com/tacenva/tacpass-core/app"
+	coreapp "github.com/tacenva/tacpass-core/app"
 	"github.com/tacenva/tacpass-core/config"
 	"github.com/tacenva/tacpass-core/entity"
 	"github.com/tacenva/tacpassd/internal/feature/accesscontrol"
@@ -21,7 +20,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func main() {
+func Run(dev bool) error {
 	initAdmin := flag.String(
 		"init-admin",
 		"",
@@ -36,64 +35,54 @@ func main() {
 
 	flag.Parse()
 
-	cfg, err := config.LoadOrCreate()
+	cfg, err := config.LoadOrCreate(dev)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	sqliteDB, err := OpenSQLite(
 		cfg.Path(config.AppDBFileName),
 	)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
-	if err := app.Migrate(sqliteDB); err != nil {
-		log.Fatal(err)
+	if err := coreapp.Migrate(sqliteDB); err != nil {
+		return err
 	}
 
 	tacenvaDB := database.New(
 		cfg.VaultDir(),
 	)
 
-	services := app.NewServices(
+	services := coreapp.NewServices(
 		sqliteDB,
 		tacenvaDB,
 	)
 
 	if *initAdmin != "" {
-		if err := initAdminPrivilege(
+		return initAdminPrivilege(
 			services,
 			*initAdmin,
-		); err != nil {
-			log.Fatal(err)
-		}
-
-		return
+		)
 	}
 
 	if *approve {
-		if err := approveUserInteractive(
+		return approveUserInteractive(
 			services,
-		); err != nil {
-			log.Fatal(err)
-		}
-
-		return
+		)
 	}
 
-	if err := serve(
+	return serve(
 		cfg,
 		services,
 		tacenvaDB,
-	); err != nil {
-		log.Fatal(err)
-	}
+	)
 }
 
 func serve(
 	cfg *config.Config,
-	services *app.Services,
+	services *coreapp.Services,
 	tacenvaDB *database.DB,
 ) error {
 	authHandler := auth.NewHandler(
@@ -175,13 +164,15 @@ func OpenSQLite(
 }
 
 func initAdminPrivilege(
-	services *app.Services,
+	services *coreapp.Services,
 	name string,
 ) error {
 	adminExists, err := services.Permission.AdminExists()
 	if err != nil {
 		return err
-	} else if adminExists {
+	}
+
+	if adminExists {
 		return errors.New("admin was initialized")
 	}
 
@@ -203,7 +194,7 @@ func initAdminPrivilege(
 }
 
 func approveUserInteractive(
-	services *app.Services,
+	services *coreapp.Services,
 ) error {
 	permissions, err := services.Permission.List()
 	if err != nil {
@@ -235,12 +226,15 @@ func approveUserInteractive(
 	}
 
 	selectedPermission := permissions[permissionIndex]
-	permissionData, err := services.Permission.Get(selectedPermission.ID)
-	users := permissionData.Users
 
+	permissionData, err := services.Permission.Get(
+		selectedPermission.ID,
+	)
 	if err != nil {
 		return err
 	}
+
+	users := permissionData.Users
 
 	if len(users) == 0 {
 		fmt.Printf(

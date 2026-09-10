@@ -133,8 +133,13 @@ func (r *Router) registerAccessControlRoutes(
 	)
 
 	r.handle(
-		"DELETE /access-control/{id}",
+		"POST /access-control/{id}/revoke",
 		handler.Revoke,
+	)
+
+	r.handle(
+		"DELETE /access-control/{id}",
+		handler.DeletePermission,
 	)
 
 	r.handle(
@@ -150,5 +155,10 @@ func (r *Router) registerAccessControlRoutes(
 	r.handle(
 		"POST /access-control/users/{userId}/revoke",
 		handler.RevokeUser,
+	)
+
+	r.handle(
+		"POST /access-control/vault-access",
+		handler.GrantPrivilege,
 	)
 }
