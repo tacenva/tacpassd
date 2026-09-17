@@ -8,165 +8,24 @@ import (
 	"strings"
 
 	"github.com/tacenva/database"
-	"github.com/tacenva/tacpass-core/entity"
 	VaultServiceCore "github.com/tacenva/tacpass-core/vault"
-	"github.com/tacenva/tacpass-core/vaultaccess"
+	"github.com/tacenva/tacpass-core/vaultrecord"
 	"github.com/tacenva/tacpassd/internal/middleware"
 )
 
 type Handler struct {
-	vaultServiceCore *VaultServiceCore.Service
-	vaultService     *Service
+	vaultServiceCore   *VaultServiceCore.Service
+	vaultRecordService *vaultrecord.RawService
 }
 
 func NewHandler(
 	vaultServiceCore *VaultServiceCore.Service,
 	tacenvaDB *database.DB,
-	vaultaccessService *vaultaccess.Service,
 ) *Handler {
 	return &Handler{
-		vaultServiceCore: vaultServiceCore,
-		vaultService: NewService(
-			tacenvaDB,
-			vaultaccessService,
-			vaultServiceCore,
-		),
+		vaultServiceCore:   vaultServiceCore,
+		vaultRecordService: vaultServiceCore.VaultRecordService,
 	}
-}
-
-func (h *Handler) CheckVaultSync(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-	if r.Method != http.MethodPost {
-		http.Error(
-			w,
-			"method not allowed",
-			http.StatusMethodNotAllowed,
-		)
-		return
-	}
-
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
-		http.Error(
-			w,
-			"unauthorized",
-			http.StatusUnauthorized,
-		)
-		return
-	}
-
-	var request struct {
-		ReplicaVaultHash string `json:"replica_vault_hash"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		http.Error(
-			w,
-			"invalid request body",
-			http.StatusBadRequest,
-		)
-		return
-	}
-
-	request.ReplicaVaultHash = strings.TrimSpace(
-		request.ReplicaVaultHash,
-	)
-
-	needSync, err := h.vaultService.CheckVaultSync(
-		authUser,
-		request.ReplicaVaultHash,
-	)
-	if err != nil {
-		h.handleServiceError(w, err)
-		return
-	}
-
-	w.Header().Set(
-		"Content-Type",
-		"application/json",
-	)
-
-	w.WriteHeader(http.StatusOK)
-
-	_ = json.NewEncoder(w).Encode(
-		struct {
-			NeedSync bool `json:"need_sync"`
-		}{
-			NeedSync: needSync,
-		},
-	)
-}
-
-func (h *Handler) VaultSync(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-	if r.Method != http.MethodPost {
-		http.Error(
-			w,
-			"method not allowed",
-			http.StatusMethodNotAllowed,
-		)
-		return
-	}
-
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
-		http.Error(
-			w,
-			"unauthorized",
-			http.StatusUnauthorized,
-		)
-		return
-	}
-
-	var request struct {
-		ReplicaVaultHash string `json:"replica_vault_hash"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		http.Error(
-			w,
-			"invalid request body",
-			http.StatusBadRequest,
-		)
-		return
-	}
-
-	request.ReplicaVaultHash = strings.TrimSpace(
-		request.ReplicaVaultHash,
-	)
-
-	vaultAccessList, needSync, serverVaultHash, err :=
-		h.vaultService.VaultSync(
-			authUser,
-			request.ReplicaVaultHash,
-		)
-	if err != nil {
-		h.handleServiceError(w, err)
-		return
-	}
-
-	w.Header().Set(
-		"Content-Type",
-		"application/json",
-	)
-
-	w.WriteHeader(http.StatusOK)
-
-	_ = json.NewEncoder(w).Encode(
-		struct {
-			NeedSync        bool                 `json:"need_sync"`
-			ServerVaultHash string               `json:"server_vault_hash"`
-			VaultAccessList []entity.VaultAccess `json:"vault_access_list,omitempty"`
-		}{
-			NeedSync:        needSync,
-			ServerVaultHash: serverVaultHash,
-			VaultAccessList: vaultAccessList,
-		},
-	)
 }
 
 func (h *Handler) CreateVault(
@@ -233,6 +92,47 @@ func (h *Handler) CreateVault(
 	w.WriteHeader(http.StatusCreated)
 
 	_ = json.NewEncoder(w).Encode(vaultAccess)
+}
+
+func (h *Handler) ListVault(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if r.Method != http.MethodGet {
+		http.Error(
+			w,
+			"method not allowed",
+			http.StatusMethodNotAllowed,
+		)
+		return
+	}
+
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(
+			w,
+			"unauthorized",
+			http.StatusUnauthorized,
+		)
+		return
+	}
+
+	vaultAccessList, err := h.vaultServiceCore.VaultAccessList(
+		authUser,
+	)
+	if err != nil {
+		h.handleServiceError(w, err)
+		return
+	}
+
+	w.Header().Set(
+		"Content-Type",
+		"application/json",
+	)
+
+	w.WriteHeader(http.StatusOK)
+
+	_ = json.NewEncoder(w).Encode(vaultAccessList)
 }
 
 func (h *Handler) UpdateVault(
@@ -408,8 +308,7 @@ func (h *Handler) CreateRecord(
 		return
 	}
 
-	recordID, err := h.vaultService.CreateRecord(
-		authUser,
+	recordID, err := h.vaultRecordService.Create(
 		vaultID,
 		data,
 	)
@@ -428,130 +327,6 @@ func (h *Handler) CreateRecord(
 	_, _ = w.Write(
 		[]byte(recordID),
 	)
-}
-
-func (h *Handler) CheckRecordBlob(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-	if r.Method != http.MethodPost {
-		http.Error(
-			w,
-			"method not allowed",
-			http.StatusMethodNotAllowed,
-		)
-		return
-	}
-
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
-		http.Error(
-			w,
-			"unauthorized",
-			http.StatusUnauthorized,
-		)
-		return
-	}
-
-	vaultID, ok := getVaultID(r)
-	if !ok {
-		http.Error(
-			w,
-			"vault id is required",
-			http.StatusBadRequest,
-		)
-		return
-	}
-
-	var request struct {
-		ReplicaVersion uint64 `json:"replica_version"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		http.Error(
-			w,
-			"invalid request body",
-			http.StatusBadRequest,
-		)
-		return
-	}
-
-	needSync, err := h.vaultService.CheckRecordBlob(
-		authUser,
-		vaultID,
-		request.ReplicaVersion,
-	)
-	if err != nil {
-		h.handleServiceError(w, err)
-		return
-	}
-
-	w.Header().Set(
-		"Content-Type",
-		"application/json",
-	)
-
-	w.WriteHeader(http.StatusOK)
-
-	_ = json.NewEncoder(w).Encode(
-		struct {
-			NeedSync bool `json:"need_sync"`
-		}{
-			NeedSync: needSync,
-		},
-	)
-}
-
-func (h *Handler) RecordBlob(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-	if r.Method != http.MethodPost {
-		http.Error(
-			w,
-			"method not allowed",
-			http.StatusMethodNotAllowed,
-		)
-		return
-	}
-
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
-		http.Error(
-			w,
-			"unauthorized",
-			http.StatusUnauthorized,
-		)
-		return
-	}
-
-	vaultID, ok := getVaultID(r)
-	if !ok {
-		http.Error(
-			w,
-			"vault id is required",
-			http.StatusBadRequest,
-		)
-		return
-	}
-
-	data, err := h.vaultService.RecordBlob(
-		authUser,
-		vaultID,
-	)
-	if err != nil {
-		h.handleServiceError(w, err)
-		return
-	}
-
-	w.Header().Set(
-		"Content-Type",
-		"application/octet-stream",
-	)
-
-	w.WriteHeader(http.StatusOK)
-
-	_, _ = w.Write(data)
 }
 
 func (h *Handler) UpdateRecord(
@@ -616,8 +391,7 @@ func (h *Handler) UpdateRecord(
 		return
 	}
 
-	if err := h.vaultService.UpdateRecord(
-		authUser,
+	if err := h.vaultRecordService.Update(
 		vaultID,
 		recordID,
 		data,
@@ -672,8 +446,7 @@ func (h *Handler) DeleteRecord(
 		return
 	}
 
-	if err := h.vaultService.DeleteRecord(
-		authUser,
+	if err := h.vaultRecordService.Delete(
 		vaultID,
 		recordID,
 	); err != nil {
@@ -682,6 +455,316 @@ func (h *Handler) DeleteRecord(
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) RecordBlob(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if r.Method != http.MethodGet {
+		http.Error(
+			w,
+			"method not allowed",
+			http.StatusMethodNotAllowed,
+		)
+		return
+	}
+
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(
+			w,
+			"unauthorized",
+			http.StatusUnauthorized,
+		)
+		return
+	}
+
+	vaultID, ok := getVaultID(r)
+	if !ok {
+		http.Error(
+			w,
+			"vault id is required",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	data, err := h.vaultRecordService.Blob(
+		vaultID,
+	)
+	if err != nil {
+		h.handleServiceError(w, err)
+		return
+	}
+
+	w.Header().Set(
+		"Content-Type",
+		"application/octet-stream",
+	)
+
+	w.WriteHeader(http.StatusOK)
+
+	_, _ = w.Write(data)
+}
+
+func (h *Handler) PendingRecordCount(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if r.Method != http.MethodGet {
+		http.Error(
+			w,
+			"method not allowed",
+			http.StatusMethodNotAllowed,
+		)
+		return
+	}
+
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(
+			w,
+			"unauthorized",
+			http.StatusUnauthorized,
+		)
+		return
+	}
+
+	vaultID, ok := getVaultID(r)
+	if !ok {
+		http.Error(
+			w,
+			"vault id is required",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	count, err := h.vaultRecordService.PendingCount(
+		authUser.ID,
+		vaultID,
+	)
+	if err != nil {
+		h.handleServiceError(w, err)
+		return
+	}
+
+	w.Header().Set(
+		"Content-Type",
+		"application/json",
+	)
+
+	w.WriteHeader(http.StatusOK)
+
+	_ = json.NewEncoder(w).Encode(
+		struct {
+			Count int64 `json:"count"`
+		}{
+			Count: count,
+		},
+	)
+}
+
+func (h *Handler) GetPendingRecordChanges(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if r.Method != http.MethodGet {
+		http.Error(
+			w,
+			"method not allowed",
+			http.StatusMethodNotAllowed,
+		)
+		return
+	}
+
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(
+			w,
+			"unauthorized",
+			http.StatusUnauthorized,
+		)
+		return
+	}
+
+	vaultID, ok := getVaultID(r)
+	if !ok {
+		http.Error(
+			w,
+			"vault id is required",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	changes, err := h.vaultRecordService.GetPendingChanges(
+		authUser.ID,
+		vaultID,
+	)
+	if err != nil {
+		h.handleServiceError(w, err)
+		return
+	}
+
+	w.Header().Set(
+		"Content-Type",
+		"application/json",
+	)
+
+	w.WriteHeader(http.StatusOK)
+
+	_ = json.NewEncoder(w).Encode(changes)
+}
+
+func (h *Handler) PendingVaultCount(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if r.Method != http.MethodGet {
+		http.Error(
+			w,
+			"method not allowed",
+			http.StatusMethodNotAllowed,
+		)
+		return
+	}
+
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(
+			w,
+			"unauthorized",
+			http.StatusUnauthorized,
+		)
+		return
+	}
+
+	count, err := h.vaultServiceCore.PendingCount(
+		authUser,
+	)
+	if err != nil {
+		h.handleServiceError(w, err)
+		return
+	}
+
+	w.Header().Set(
+		"Content-Type",
+		"application/json",
+	)
+
+	w.WriteHeader(http.StatusOK)
+
+	_ = json.NewEncoder(w).Encode(
+		struct {
+			Count int64 `json:"count"`
+		}{
+			Count: count,
+		},
+	)
+}
+
+func (h *Handler) GetPendingVaultChanges(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if r.Method != http.MethodGet {
+		http.Error(
+			w,
+			"method not allowed",
+			http.StatusMethodNotAllowed,
+		)
+		return
+	}
+
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(
+			w,
+			"unauthorized",
+			http.StatusUnauthorized,
+		)
+		return
+	}
+
+	changes, err := h.vaultServiceCore.GetPendingChanges(
+		authUser,
+	)
+	if err != nil {
+		h.handleServiceError(w, err)
+		return
+	}
+
+	w.Header().Set(
+		"Content-Type",
+		"application/json",
+	)
+
+	w.WriteHeader(http.StatusOK)
+
+	_ = json.NewEncoder(w).Encode(changes)
+}
+
+func (h *Handler) CheckVaultAccessible(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if r.Method != http.MethodGet {
+		http.Error(
+			w,
+			"method not allowed",
+			http.StatusMethodNotAllowed,
+		)
+		return
+	}
+
+	vaultID, ok := getVaultID(r)
+	if !ok {
+		http.Error(
+			w,
+			"vault id is required",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	permissionID := strings.TrimSpace(
+		r.URL.Query().Get("permissionID"),
+	)
+
+	if permissionID == "" {
+		http.Error(
+			w,
+			"permission id is required",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	accessible, err := h.vaultServiceCore.IsVaultAccesible(
+		vaultID,
+		permissionID,
+	)
+	if err != nil {
+		h.handleServiceError(w, err)
+		return
+	}
+
+	w.Header().Set(
+		"Content-Type",
+		"application/json",
+	)
+
+	w.WriteHeader(http.StatusOK)
+
+	_ = json.NewEncoder(w).Encode(
+		struct {
+			Accessible bool `json:"accessible"`
+		}{
+			Accessible: accessible,
+		},
+	)
 }
 
 func (h *Handler) handleServiceError(
@@ -708,13 +791,6 @@ func (h *Handler) handleServiceError(
 			w,
 			"vault name cannot be empty",
 			http.StatusBadRequest,
-		)
-
-	case errors.Is(err, ErrForbidden):
-		http.Error(
-			w,
-			"forbidden",
-			http.StatusForbidden,
 		)
 
 	default:

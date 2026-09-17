@@ -1,7 +1,6 @@
 package app
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"net/http"
@@ -9,7 +8,6 @@ import (
 	"github.com/tacenva/database"
 	coreapp "github.com/tacenva/tacpass-core/app"
 	"github.com/tacenva/tacpass-core/config"
-	"github.com/tacenva/tacpass-core/entity"
 	"github.com/tacenva/tacpassd/internal/feature/accesscontrol"
 	"github.com/tacenva/tacpassd/internal/feature/auth"
 	"github.com/tacenva/tacpassd/internal/feature/vault"
@@ -97,7 +95,7 @@ func serve(
 	vaultHandler := vault.NewHandler(
 		services.Vault,
 		tacenvaDB,
-		services.VaultAccess,
+		// services.VaultAccess,
 	)
 
 	authMiddleware := middleware.NewAuth(
@@ -180,19 +178,7 @@ func initAdminPrivilege(
 	services *coreapp.Services,
 	name string,
 ) error {
-	adminExists, err := services.Permission.AdminExists()
-	if err != nil {
-		return err
-	}
-
-	if adminExists {
-		return errors.New("admin was initialized")
-	}
-
-	_, keypair, err := services.Permission.Create(
-		name,
-		entity.PrivilegeAdmin,
-	)
+	_, keypair, err := services.AccessControl.InitAdminPrivilege(name)
 	if err != nil {
 		return err
 	}
@@ -209,7 +195,7 @@ func initAdminPrivilege(
 func approveUserInteractive(
 	services *coreapp.Services,
 ) error {
-	permissions, err := services.Permission.List()
+	permissions, err := services.AccessControl.ListInternal()
 	if err != nil {
 		return err
 	}
@@ -240,7 +226,7 @@ func approveUserInteractive(
 
 	selectedPermission := permissions[permissionIndex]
 
-	permissionData, err := services.Permission.Get(
+	permissionData, err := services.AccessControl.GetInternal(
 		selectedPermission.ID,
 	)
 	if err != nil {
@@ -283,9 +269,8 @@ func approveUserInteractive(
 
 	selectedUser := users[userIndex]
 
-	approvedUser, err := services.User.UpdateStatus(
+	approvedUser, err := services.AccessControl.ApproveUserInternal(
 		selectedUser.ID,
-		entity.UserStatusApproved,
 	)
 	if err != nil {
 		return err

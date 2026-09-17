@@ -58,14 +58,10 @@ func (r *Router) registerVaultRoutes(
 		"POST /vault",
 		handler.CreateVault,
 	)
-	r.handle(
-		"POST /vault/sync/check",
-		handler.CheckVaultSync,
-	)
 
 	r.handle(
-		"POST /vault/sync",
-		handler.VaultSync,
+		"GET /vault",
+		handler.ListVault,
 	)
 
 	r.handle(
@@ -79,18 +75,23 @@ func (r *Router) registerVaultRoutes(
 	)
 
 	r.handle(
+		"GET /vault/changes/count",
+		handler.PendingVaultCount,
+	)
+
+	r.handle(
+		"GET /vault/changes",
+		handler.GetPendingVaultChanges,
+	)
+
+	r.handle(
+		"GET /vault/{vaultID}/accessible",
+		handler.CheckVaultAccessible,
+	)
+
+	r.handle(
 		"POST /vault/{vaultID}/record",
 		handler.CreateRecord,
-	)
-
-	r.handle(
-		"POST /vault/{vaultID}/record/blob/check",
-		handler.CheckRecordBlob,
-	)
-
-	r.handle(
-		"POST /vault/{vaultID}/record/blob",
-		handler.RecordBlob,
 	)
 
 	r.handle(
@@ -101,6 +102,21 @@ func (r *Router) registerVaultRoutes(
 	r.handle(
 		"DELETE /vault/{vaultID}/record/{recordID}",
 		handler.DeleteRecord,
+	)
+
+	r.handle(
+		"GET /vault/{vaultID}/record/blob",
+		handler.RecordBlob,
+	)
+
+	r.handle(
+		"GET /vault/{vaultID}/record/changes/count",
+		handler.PendingRecordCount,
+	)
+
+	r.handle(
+		"GET /vault/{vaultID}/record/changes",
+		handler.GetPendingRecordChanges,
 	)
 }
 
