@@ -13,6 +13,7 @@ import (
 	"github.com/tacenva/tacpassd/internal/feature/accesscontrol"
 	"github.com/tacenva/tacpassd/internal/feature/auth"
 	"github.com/tacenva/tacpassd/internal/feature/vault"
+	"github.com/tacenva/tacpassd/internal/mdns"
 	"github.com/tacenva/tacpassd/internal/middleware"
 	"github.com/tacenva/tacpassd/internal/server"
 	"github.com/tacenva/tacpassd/internal/tls"
@@ -125,6 +126,18 @@ func serve(
 		),
 		handler,
 	)
+
+	mdnsServer, err := mdns.Start(
+		cfg.Server.Hostname,
+		cfg.Server.Port,
+	)
+	if err != nil {
+		return fmt.Errorf(
+			"start mdns: %w",
+			err,
+		)
+	}
+	defer mdnsServer.Shutdown()
 
 	return httpServer.Run(
 		cfg.Path(cfg.TLS.CertFile),
