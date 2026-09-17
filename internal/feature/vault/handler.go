@@ -618,6 +618,73 @@ func (h *Handler) GetPendingRecordChanges(
 	_ = json.NewEncoder(w).Encode(changes)
 }
 
+func (h *Handler) MarkRecordChangesSynced(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if r.Method != http.MethodPost {
+		http.Error(
+			w,
+			"method not allowed",
+			http.StatusMethodNotAllowed,
+		)
+		return
+	}
+
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(
+			w,
+			"unauthorized",
+			http.StatusUnauthorized,
+		)
+		return
+	}
+
+	vaultID, ok := getVaultID(r)
+	if !ok {
+		http.Error(
+			w,
+			"vault id is required",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	var request struct {
+		ChangeIDs []string `json:"change_ids"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(
+			w,
+			"invalid request body",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	if len(request.ChangeIDs) == 0 {
+		http.Error(
+			w,
+			"change_ids cannot be empty",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	if err := h.vaultRecordService.MarkChangesSynced(
+		authUser.ID,
+		vaultID,
+		request.ChangeIDs,
+	); err != nil {
+		h.handleServiceError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *Handler) PendingVaultCount(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -704,6 +771,62 @@ func (h *Handler) GetPendingVaultChanges(
 	w.WriteHeader(http.StatusOK)
 
 	_ = json.NewEncoder(w).Encode(changes)
+}
+
+func (h *Handler) MarkVaultChangesSynced(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if r.Method != http.MethodPost {
+		http.Error(
+			w,
+			"method not allowed",
+			http.StatusMethodNotAllowed,
+		)
+		return
+	}
+
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(
+			w,
+			"unauthorized",
+			http.StatusUnauthorized,
+		)
+		return
+	}
+
+	var request struct {
+		ChangeIDs []string `json:"change_ids"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(
+			w,
+			"invalid request body",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	if len(request.ChangeIDs) == 0 {
+		http.Error(
+			w,
+			"change_ids cannot be empty",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	if err := h.vaultServiceCore.MarkChangesSynced(
+		authUser,
+		request.ChangeIDs,
+	); err != nil {
+		h.handleServiceError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) CheckVaultAccessible(
