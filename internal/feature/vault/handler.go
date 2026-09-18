@@ -317,6 +317,7 @@ func (h *Handler) CreateRecord(
 	}
 
 	recordID, err := h.vaultRecordService.Create(
+		authUser,
 		h.vaultDir,
 		vaultID,
 		data,
@@ -401,6 +402,7 @@ func (h *Handler) UpdateRecord(
 	}
 
 	if err := h.vaultRecordService.Update(
+		authUser,
 		h.vaultDir,
 		vaultID,
 		recordID,
@@ -457,6 +459,7 @@ func (h *Handler) DeleteRecord(
 	}
 
 	if err := h.vaultRecordService.Delete(
+		authUser,
 		h.vaultDir,
 		vaultID,
 		recordID,
@@ -502,6 +505,7 @@ func (h *Handler) RecordBlob(
 	}
 
 	data, err := h.vaultRecordService.Blob(
+		authUser,
 		h.vaultDir,
 		vaultID,
 	)
