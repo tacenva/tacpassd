@@ -32,7 +32,18 @@ func Run(dev bool) error {
 		"approve a user interactively",
 	)
 
+	version := flag.Bool(
+		"version",
+		false,
+		"show application version",
+	)
+
 	flag.Parse()
+
+	if *version {
+		fmt.Println(Version())
+		return nil
+	}
 
 	cfg, err := config.LoadOrCreate(dev)
 	if err != nil {
@@ -75,14 +86,12 @@ func Run(dev bool) error {
 	return serve(
 		cfg,
 		services,
-		tacenvaDB,
 	)
 }
 
 func serve(
 	cfg *config.Config,
 	services *coreapp.Services,
-	tacenvaDB *database.DB,
 ) error {
 	authHandler := auth.NewHandler(
 		services.Auth,
