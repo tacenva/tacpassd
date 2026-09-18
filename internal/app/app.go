@@ -143,7 +143,14 @@ func serve(
 			err,
 		)
 	}
+
 	defer mdnsServer.Shutdown()
+
+	fmt.Printf(
+		"mDNS service started: %s.local:%d\n",
+		cfg.Server.Hostname,
+		cfg.Server.Port,
+	)
 
 	return httpServer.Run(
 		cfg.Path(cfg.TLS.CertFile),
@@ -151,10 +158,13 @@ func serve(
 	)
 }
 
-func ensureTLS(cfg *config.Config) error {
+func ensureTLS(
+	cfg *config.Config,
+) error {
 	if err := tls.GenerateSelfSignedCert(
 		cfg.Path(cfg.TLS.CertFile),
 		cfg.Path(cfg.TLS.KeyFile),
+		cfg.Server.Hostname,
 	); err != nil {
 		return fmt.Errorf(
 			"generate tls certificate: %w",
@@ -186,7 +196,9 @@ func initAdminPrivilege(
 	services *coreapp.Services,
 	name string,
 ) error {
-	_, keypair, err := services.AccessControl.InitAdminPrivilege(name)
+	_, keypair, err := services.AccessControl.InitAdminPrivilege(
+		name,
+	)
 	if err != nil {
 		return err
 	}
