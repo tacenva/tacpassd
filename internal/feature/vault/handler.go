@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/tacenva/database"
+	"github.com/tacenva/tacpass-core/config"
 	VaultServiceCore "github.com/tacenva/tacpass-core/vault"
 	"github.com/tacenva/tacpass-core/vaultrecord"
 	"github.com/tacenva/tacpassd/internal/middleware"
@@ -16,15 +16,21 @@ import (
 type Handler struct {
 	vaultServiceCore   *VaultServiceCore.Service
 	vaultRecordService *vaultrecord.RawService
+	vaultDir           string
 }
 
 func NewHandler(
 	vaultServiceCore *VaultServiceCore.Service,
-	tacenvaDB *database.DB,
+	cfg *config.Config,
 ) *Handler {
 	return &Handler{
 		vaultServiceCore:   vaultServiceCore,
-		vaultRecordService: vaultServiceCore.VaultRecordService,
+		vaultRecordService: vaultServiceCore.GetVaultRecordRawService(),
+		vaultDir: cfg.Path(
+			"node",
+			cfg.SoTULID,
+			"vault",
+		),
 	}
 }
 
@@ -77,6 +83,7 @@ func (h *Handler) CreateVault(
 
 	vaultAccess, err := h.vaultServiceCore.Create(
 		authUser,
+		h.vaultDir,
 		request.Name,
 	)
 	if err != nil {
@@ -247,6 +254,7 @@ func (h *Handler) DeleteVault(
 
 	if err := h.vaultServiceCore.Delete(
 		authUser,
+		h.vaultDir,
 		vaultID,
 	); err != nil {
 		h.handleServiceError(w, err)
@@ -309,6 +317,7 @@ func (h *Handler) CreateRecord(
 	}
 
 	recordID, err := h.vaultRecordService.Create(
+		h.vaultDir,
 		vaultID,
 		data,
 	)
@@ -392,6 +401,7 @@ func (h *Handler) UpdateRecord(
 	}
 
 	if err := h.vaultRecordService.Update(
+		h.vaultDir,
 		vaultID,
 		recordID,
 		data,
@@ -447,6 +457,7 @@ func (h *Handler) DeleteRecord(
 	}
 
 	if err := h.vaultRecordService.Delete(
+		h.vaultDir,
 		vaultID,
 		recordID,
 	); err != nil {
@@ -491,6 +502,7 @@ func (h *Handler) RecordBlob(
 	}
 
 	data, err := h.vaultRecordService.Blob(
+		h.vaultDir,
 		vaultID,
 	)
 	if err != nil {
@@ -600,6 +612,7 @@ func (h *Handler) GetPendingRecordChanges(
 	}
 
 	changes, err := h.vaultRecordService.GetPendingChanges(
+		h.vaultDir,
 		authUser.ID,
 		vaultID,
 	)

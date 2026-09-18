@@ -94,8 +94,7 @@ func serve(
 
 	vaultHandler := vault.NewHandler(
 		services.Vault,
-		tacenvaDB,
-		// services.VaultAccess,
+		cfg,
 	)
 
 	authMiddleware := middleware.NewAuth(
