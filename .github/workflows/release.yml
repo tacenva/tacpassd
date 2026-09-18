@@ -43,6 +43,7 @@ jobs:
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
+          VERSION: ${{ github.ref_name }}
         run: |
           mkdir -p dist
 
@@ -54,7 +55,7 @@ jobs:
 
           go build \
             -trimpath \
-            -ldflags="-s -w" \
+            -ldflags="-s -w -X github.com/tacenva/tacpassd/internal/app.Version=${VERSION}" \
             -o "dist/${NAME}" \
             ./cmd/tacpassd
 
