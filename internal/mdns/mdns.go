@@ -227,8 +227,6 @@ func isVirtualInterface(
 		"lxc",
 		"cni",
 		"flannel",
-		"tun",
-		"tap",
 	}
 
 	for _, prefix := range prefixes {
