@@ -41,7 +41,7 @@ func Run(dev bool) error {
 	flag.Parse()
 
 	if *version {
-		fmt.Println(Version())
+		fmt.Println(Version)
 		return nil
 	}
 
