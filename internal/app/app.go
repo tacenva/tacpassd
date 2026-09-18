@@ -15,6 +15,7 @@ import (
 	"github.com/tacenva/tacpassd/internal/middleware"
 	"github.com/tacenva/tacpassd/internal/server"
 	"github.com/tacenva/tacpassd/internal/tls"
+	"github.com/tacenva/tacpassd/internal/vpn"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -133,6 +134,7 @@ func serve(
 		handler,
 	)
 
+	// LAN discovery.
 	mdnsServer, err := mdns.Start(
 		cfg.Server.Hostname,
 		cfg.Server.Port,
@@ -150,6 +152,26 @@ func serve(
 		"mDNS service started: %s.local:%d\n",
 		cfg.Server.Hostname,
 		cfg.Server.Port,
+	)
+
+	// VPN discovery.
+	vpnServer, err := vpn.Start(
+		"tun0",
+		cfg.Server.Hostname,
+		cfg.Server.Port,
+	)
+	if err != nil {
+		return fmt.Errorf(
+			"start vpn discovery: %w",
+			err,
+		)
+	}
+
+	defer vpnServer.Shutdown()
+
+	fmt.Printf(
+		"VPN discovery service started: tun0:%d\n",
+		vpn.DiscoveryPort,
 	)
 
 	return httpServer.Run(

@@ -12,16 +12,15 @@ type Server struct {
 	server *mdns.Server
 }
 
-func Start(
-	name string,
-	port int,
-) (*Server, error) {
+func Start(name string, port int) (*Server, error) {
 	name = normalizeHostname(name)
 
 	if name == "" {
-		return nil, fmt.Errorf(
-			"hostname is required",
-		)
+		return nil, fmt.Errorf("hostname is required")
+	}
+
+	if port <= 0 || port > 65535 {
+		return nil, fmt.Errorf("invalid port: %d", port)
 	}
 
 	iface, err := findInterface()
@@ -29,7 +28,7 @@ func Start(
 		return nil, err
 	}
 
-	ips, err := iface.Addrs()
+	addrs, err := iface.Addrs()
 	if err != nil {
 		return nil, fmt.Errorf(
 			"get interface addresses: %w",
@@ -37,7 +36,7 @@ func Start(
 		)
 	}
 
-	serviceIPs := privateIPv4Addresses(ips)
+	serviceIPs := privateIPv4Addresses(addrs)
 
 	if len(serviceIPs) == 0 {
 		return nil, fmt.Errorf(
@@ -67,18 +66,23 @@ func Start(
 		)
 	}
 
-	server, err := mdns.NewServer(
-		&mdns.Config{
-			Zone:  service,
-			Iface: iface,
-		},
-	)
+	server, err := mdns.NewServer(&mdns.Config{
+		Zone:              service,
+		Iface:             iface,
+		LogEmptyResponses: true,
+	})
 	if err != nil {
 		return nil, fmt.Errorf(
 			"start mdns server: %w",
 			err,
 		)
 	}
+
+	fmt.Printf(
+		"mDNS server listening on %s (%s)\n",
+		iface.Name,
+		strings.Join(ipStrings(serviceIPs), ", "),
+	)
 
 	return &Server{
 		server: server,
@@ -93,8 +97,6 @@ func findInterface() (*net.Interface, error) {
 			err,
 		)
 	}
-
-	var candidates []net.Interface
 
 	for _, iface := range interfaces {
 		if iface.Flags&net.FlagUp == 0 {
@@ -122,24 +124,40 @@ func findInterface() (*net.Interface, error) {
 			continue
 		}
 
-		candidates = append(
-			candidates,
-			iface,
-		)
+		return &iface, nil
 	}
 
-	if len(candidates) == 0 {
-		return nil, fmt.Errorf(
-			"no suitable network interface found",
-		)
-	}
-
-	return &candidates[0], nil
+	return nil, fmt.Errorf(
+		"no suitable multicast interface found",
+	)
 }
 
-func hasPrivateIPv4(
-	addrs []net.Addr,
-) bool {
+func isVirtualInterface(name string) bool {
+	prefixes := []string{
+		"docker",
+		"br-",
+		"veth",
+		"vmnet",
+		"virbr",
+		"lxc",
+		"cni",
+		"flannel",
+		"tun",
+		"tap",
+	}
+
+	name = strings.ToLower(name)
+
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(name, prefix) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func hasPrivateIPv4(addrs []net.Addr) bool {
 	for _, addr := range addrs {
 		ip := addressIP(addr)
 
@@ -147,7 +165,9 @@ func hasPrivateIPv4(
 			continue
 		}
 
-		if ip.To4() == nil {
+		ip = ip.To4()
+
+		if ip == nil {
 			continue
 		}
 
@@ -163,9 +183,7 @@ func hasPrivateIPv4(
 	return false
 }
 
-func privateIPv4Addresses(
-	addrs []net.Addr,
-) []net.IP {
+func privateIPv4Addresses(addrs []net.Addr) []net.IP {
 	var result []net.IP
 
 	for _, addr := range addrs {
@@ -189,18 +207,13 @@ func privateIPv4Addresses(
 			continue
 		}
 
-		result = append(
-			result,
-			ip,
-		)
+		result = append(result, ip)
 	}
 
 	return result
 }
 
-func addressIP(
-	addr net.Addr,
-) net.IP {
+func addressIP(addr net.Addr) net.IP {
 	switch value := addr.(type) {
 	case *net.IPNet:
 		return value.IP
@@ -213,39 +226,19 @@ func addressIP(
 	}
 }
 
-func isVirtualInterface(
-	name string,
-) bool {
-	name = strings.ToLower(name)
+func ipStrings(ips []net.IP) []string {
+	result := make([]string, 0, len(ips))
 
-	prefixes := []string{
-		"docker",
-		"br-",
-		"veth",
-		"vmnet",
-		"virbr",
-		"lxc",
-		"cni",
-		"flannel",
+	for _, ip := range ips {
+		result = append(result, ip.String())
 	}
 
-	for _, prefix := range prefixes {
-		if strings.HasPrefix(name, prefix) {
-			return true
-		}
-	}
-
-	return false
+	return result
 }
 
-func normalizeHostname(
-	hostname string,
-) string {
+func normalizeHostname(hostname string) string {
 	hostname = strings.TrimSpace(hostname)
-	hostname = strings.TrimSuffix(
-		hostname,
-		".",
-	)
+	hostname = strings.TrimSuffix(hostname, ".")
 
 	if hostname == "" {
 		return ""
