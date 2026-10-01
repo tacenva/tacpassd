@@ -37,6 +37,49 @@ func NewHandler(
 	}
 }
 
+func (h *Handler) GetConnectedPermission(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if r.Method != http.MethodGet {
+		http.Error(
+			w,
+			"method not allowed",
+			http.StatusMethodNotAllowed,
+		)
+		return
+	}
+
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(
+			w,
+			"unauthorized",
+			http.StatusUnauthorized,
+		)
+		return
+	}
+
+	permissionList, err := h.vaultServiceCore.GetConnectedPermission(
+		authUser,
+	)
+	if err != nil {
+		h.handleServiceError(w, err)
+		return
+	}
+
+	w.Header().Set(
+		"Content-Type",
+		"application/json",
+	)
+
+	w.WriteHeader(http.StatusOK)
+
+	_ = json.NewEncoder(w).Encode(
+		permissionList,
+	)
+}
+
 func (h *Handler) SyncVault(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -167,7 +210,6 @@ func (h *Handler) VaultChangeCount(
 	}
 
 	count, err := h.vaultServiceCore.GetChangeCount(
-		authUser,
 		h.sotID,
 		startChangeID,
 	)

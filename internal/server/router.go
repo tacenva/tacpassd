@@ -56,6 +56,11 @@ func (r *Router) registerVaultRoutes(
 ) {
 	// Vault
 	r.handle(
+		"GET /vault/permission",
+		handler.GetConnectedPermission,
+	)
+
+	r.handle(
 		"GET /vault",
 		handler.ListVault,
 	)
