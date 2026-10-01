@@ -54,87 +54,46 @@ func (r *Router) registerAuthRoutes(
 func (r *Router) registerVaultRoutes(
 	handler *vault.Handler,
 ) {
-	r.handle(
-		"POST /vault",
-		handler.CreateVault,
-	)
-
+	// Vault
 	r.handle(
 		"GET /vault",
 		handler.ListVault,
 	)
 
 	r.handle(
-		"PUT /vault/{vaultID}",
-		handler.UpdateVault,
-	)
-
-	r.handle(
-		"DELETE /vault/{vaultID}",
-		handler.DeleteVault,
-	)
-
-	// Vault sync
-
-	r.handle(
 		"GET /vault/changes/count",
-		handler.PendingVaultCount,
+		handler.VaultChangeCount,
 	)
 
 	r.handle(
 		"GET /vault/changes",
-		handler.GetPendingVaultChanges,
+		handler.GetVaultChangesAfter,
 	)
 
 	r.handle(
-		"POST /vault/changes/synced",
-		handler.MarkVaultChangesSynced,
-	)
-
-	// Vault access
-
-	r.handle(
-		"GET /vault/{vaultID}/accessible",
-		handler.CheckVaultAccessible,
+		"POST /vault/sync",
+		handler.SyncVault,
 	)
 
 	// Record
-
-	r.handle(
-		"POST /vault/{vaultID}/record",
-		handler.CreateRecord,
-	)
-
-	r.handle(
-		"PUT /vault/{vaultID}/record/{recordID}",
-		handler.UpdateRecord,
-	)
-
-	r.handle(
-		"DELETE /vault/{vaultID}/record/{recordID}",
-		handler.DeleteRecord,
-	)
-
 	r.handle(
 		"GET /vault/{vaultID}/record/blob",
 		handler.RecordBlob,
 	)
 
-	// Record sync
-
 	r.handle(
 		"GET /vault/{vaultID}/record/changes/count",
-		handler.PendingRecordCount,
+		handler.RecordChangeCount,
 	)
 
 	r.handle(
 		"GET /vault/{vaultID}/record/changes",
-		handler.GetPendingRecordChanges,
+		handler.GetRecordChangesAfter,
 	)
 
 	r.handle(
-		"POST /vault/{vaultID}/record/changes/synced",
-		handler.MarkRecordChangesSynced,
+		"POST /vault/{vaultID}/record/sync",
+		handler.SyncRecord,
 	)
 }
 
@@ -189,10 +148,5 @@ func (r *Router) registerAccessControlRoutes(
 	r.handle(
 		"POST /access-control/users/{userId}/revoke",
 		handler.RevokeUser,
-	)
-
-	r.handle(
-		"POST /access-control/vault-access",
-		handler.GrantPrivilege,
 	)
 }

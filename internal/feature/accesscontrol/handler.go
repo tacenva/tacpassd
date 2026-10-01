@@ -27,6 +27,7 @@ func NewHandler(
 type createRequest struct {
 	Name      string           `json:"name"`
 	Privilege entity.Privilege `json:"privilege"`
+	Group     string           `json:"group"`
 }
 
 type changeNameRequest struct {
@@ -151,6 +152,7 @@ func (h *Handler) Create(
 		authUser,
 		request.Name,
 		request.Privilege,
+		request.Group,
 	)
 	if err != nil {
 		h.handleServiceError(w, err)
@@ -529,44 +531,6 @@ func (h *Handler) DeletePermission(
 	if err := h.accesscontrolService.DeletePermission(
 		authUser,
 		permissionID,
-	); err != nil {
-		h.handleServiceError(w, err)
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func (h *Handler) GrantPrivilege(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
-		http.Error(
-			w,
-			"unauthorized",
-			http.StatusUnauthorized,
-		)
-		return
-	}
-
-	var vaultAccessList []entity.VaultAccess
-
-	if err := json.NewDecoder(r.Body).Decode(
-		&vaultAccessList,
-	); err != nil {
-		http.Error(
-			w,
-			"invalid request body",
-			http.StatusBadRequest,
-		)
-		return
-	}
-
-	if err := h.accesscontrolService.GrantPrivilege(
-		authUser,
-		vaultAccessList,
 	); err != nil {
 		h.handleServiceError(w, err)
 		return
