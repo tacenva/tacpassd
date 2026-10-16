@@ -161,13 +161,18 @@ func serve(
 		cfg.Server.Port,
 	)
 	if err != nil {
-		return fmt.Errorf(
-			"start vpn discovery: %w",
+		fmt.Printf(
+			"VPN discovery disabled: %v",
 			err,
 		)
-	}
+	} else {
+		defer vpnServer.Shutdown()
 
-	defer vpnServer.Shutdown()
+		fmt.Printf(
+			"VPN discovery service started: tun0:%d",
+			vpn.DiscoveryPort,
+		)
+	}
 
 	fmt.Printf(
 		"VPN discovery service started: tun0:%d\n",
