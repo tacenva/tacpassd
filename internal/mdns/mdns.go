@@ -69,7 +69,7 @@ func Start(name string, port int) (*Server, error) {
 	server, err := mdns.NewServer(&mdns.Config{
 		Zone:              service,
 		Iface:             iface,
-		LogEmptyResponses: true,
+		LogEmptyResponses: false,
 	})
 	if err != nil {
 		return nil, fmt.Errorf(

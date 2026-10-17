@@ -28,12 +28,8 @@ func NewHandler(
 	return &Handler{
 		vaultServiceCore:   vaultServiceCore,
 		vaultRecordService: vaultServiceCore.GetVaultRecordService(),
-		vaultDir: cfg.Path(
-			"node",
-			cfg.SoTULID,
-			"vault",
-		),
-		sotID: cfg.SoTULID,
+		vaultDir:           cfg.VaultDir(),
+		sotID:              cfg.SoTULID,
 	}
 }
 
@@ -200,14 +196,14 @@ func (h *Handler) VaultChangeCount(
 	startChangeID := strings.TrimSpace(
 		r.URL.Query().Get("start_change_id"),
 	)
-	if startChangeID == "" {
-		http.Error(
-			w,
-			"start change id is required",
-			http.StatusBadRequest,
-		)
-		return
-	}
+	// if startChangeID == "" {
+	// 	http.Error(
+	// 		w,
+	// 		"start change id is required",
+	// 		http.StatusBadRequest,
+	// 	)
+	// 	return
+	// }
 
 	count, err := h.vaultServiceCore.GetChangeCount(
 		h.sotID,
@@ -260,14 +256,14 @@ func (h *Handler) GetVaultChangesAfter(
 	startChangeID := strings.TrimSpace(
 		r.URL.Query().Get("start_change_id"),
 	)
-	if startChangeID == "" {
-		http.Error(
-			w,
-			"start change id is required",
-			http.StatusBadRequest,
-		)
-		return
-	}
+	// if startChangeID == "" {
+	// 	http.Error(
+	// 		w,
+	// 		"start change id is required",
+	// 		http.StatusBadRequest,
+	// 	)
+	// 	return
+	// }
 
 	limitValue := strings.TrimSpace(
 		r.URL.Query().Get("limit"),
@@ -501,14 +497,14 @@ func (h *Handler) RecordChangeCount(
 	startChangeID := strings.TrimSpace(
 		r.URL.Query().Get("start_change_id"),
 	)
-	if startChangeID == "" {
-		http.Error(
-			w,
-			"start change id is required",
-			http.StatusBadRequest,
-		)
-		return
-	}
+	// if startChangeID == "" {
+	// 	http.Error(
+	// 		w,
+	// 		"start change id is required",
+	// 		http.StatusBadRequest,
+	// 	)
+	// 	return
+	// }
 
 	count, err := h.vaultRecordService.GetChangeCount(
 		authUser,
@@ -573,14 +569,14 @@ func (h *Handler) GetRecordChangesAfter(
 	startChangeID := strings.TrimSpace(
 		r.URL.Query().Get("start_change_id"),
 	)
-	if startChangeID == "" {
-		http.Error(
-			w,
-			"start change id is required",
-			http.StatusBadRequest,
-		)
-		return
-	}
+	// if startChangeID == "" {
+	// 	http.Error(
+	// 		w,
+	// 		"start change id is required",
+	// 		http.StatusBadRequest,
+	// 	)
+	// 	return
+	// }
 
 	limitValue := strings.TrimSpace(
 		r.URL.Query().Get("limit"),
