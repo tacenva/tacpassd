@@ -196,14 +196,6 @@ func (h *Handler) VaultChangeCount(
 	startChangeID := strings.TrimSpace(
 		r.URL.Query().Get("start_change_id"),
 	)
-	// if startChangeID == "" {
-	// 	http.Error(
-	// 		w,
-	// 		"start change id is required",
-	// 		http.StatusBadRequest,
-	// 	)
-	// 	return
-	// }
 
 	count, err := h.vaultServiceCore.GetChangeCount(
 		h.sotID,
@@ -256,14 +248,6 @@ func (h *Handler) GetVaultChangesAfter(
 	startChangeID := strings.TrimSpace(
 		r.URL.Query().Get("start_change_id"),
 	)
-	// if startChangeID == "" {
-	// 	http.Error(
-	// 		w,
-	// 		"start change id is required",
-	// 		http.StatusBadRequest,
-	// 	)
-	// 	return
-	// }
 
 	limitValue := strings.TrimSpace(
 		r.URL.Query().Get("limit"),
@@ -497,14 +481,6 @@ func (h *Handler) RecordChangeCount(
 	startChangeID := strings.TrimSpace(
 		r.URL.Query().Get("start_change_id"),
 	)
-	// if startChangeID == "" {
-	// 	http.Error(
-	// 		w,
-	// 		"start change id is required",
-	// 		http.StatusBadRequest,
-	// 	)
-	// 	return
-	// }
 
 	count, err := h.vaultRecordService.GetChangeCount(
 		authUser,
@@ -569,14 +545,6 @@ func (h *Handler) GetRecordChangesAfter(
 	startChangeID := strings.TrimSpace(
 		r.URL.Query().Get("start_change_id"),
 	)
-	// if startChangeID == "" {
-	// 	http.Error(
-	// 		w,
-	// 		"start change id is required",
-	// 		http.StatusBadRequest,
-	// 	)
-	// 	return
-	// }
 
 	limitValue := strings.TrimSpace(
 		r.URL.Query().Get("limit"),
@@ -733,18 +701,4 @@ func getVaultID(
 	}
 
 	return vaultID, true
-}
-
-func getRecordID(
-	r *http.Request,
-) (string, bool) {
-	recordID := strings.TrimSpace(
-		r.PathValue("recordID"),
-	)
-
-	if recordID == "" {
-		return "", false
-	}
-
-	return recordID, true
 }
