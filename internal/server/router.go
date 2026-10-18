@@ -56,8 +56,8 @@ func (r *Router) registerVaultRoutes(
 ) {
 	// Vault
 	r.handle(
-		"GET /vault/permission",
-		handler.GetConnectedPermission,
+		"GET /vault/connected-public-keys",
+		handler.ConnectedPublicKeys,
 	)
 
 	r.handle(

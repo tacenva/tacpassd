@@ -33,7 +33,7 @@ func NewHandler(
 	}
 }
 
-func (h *Handler) GetConnectedPermission(
+func (h *Handler) ConnectedPublicKeys(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
@@ -56,7 +56,7 @@ func (h *Handler) GetConnectedPermission(
 		return
 	}
 
-	permissionList, err := h.vaultServiceCore.GetConnectedPermission(
+	permissionList, err := h.vaultServiceCore.ConnectedPublicKeys(
 		authUser,
 	)
 	if err != nil {
@@ -111,8 +111,8 @@ func (h *Handler) SyncVault(
 	}
 
 	if err := h.vaultServiceCore.SyncOnSoT(
-		authUser,
-		h.vaultDir,
+		// authUser,
+		// h.vaultDir,
 		h.sotID,
 		changes,
 	); err != nil {
