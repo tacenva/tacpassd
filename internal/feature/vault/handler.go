@@ -644,6 +644,7 @@ func (h *Handler) SyncRecord(
 		h.sotID,
 		vaultID,
 		changes,
+		nil,
 	); err != nil {
 		h.handleServiceError(w, err)
 		return
