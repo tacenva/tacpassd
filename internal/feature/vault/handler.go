@@ -3,6 +3,7 @@ package vault
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -214,9 +215,7 @@ func (h *Handler) VaultChangeCount(
 	w.WriteHeader(http.StatusOK)
 
 	_ = json.NewEncoder(w).Encode(
-		struct {
-			Count int64 `json:"count"`
-		}{
+		contract.PendingTotalChanges{
 			Count: count,
 		},
 	)
@@ -288,6 +287,9 @@ func (h *Handler) GetVaultChangesAfter(
 	)
 
 	w.WriteHeader(http.StatusOK)
+
+	changesJSON, _ := json.MarshalIndent(changes, "", "  ")
+	log.Printf("[DEBUG] changes:\n%s", string(changesJSON))
 
 	_ = json.NewEncoder(w).Encode(changes)
 }
@@ -483,7 +485,7 @@ func (h *Handler) RecordChangeCount(
 	)
 
 	count, err := h.vaultRecordService.GetChangeCount(
-		authUser,
+		// authUser,
 		h.sotID,
 		vaultID,
 		startChangeID,
@@ -501,9 +503,7 @@ func (h *Handler) RecordChangeCount(
 	w.WriteHeader(http.StatusOK)
 
 	_ = json.NewEncoder(w).Encode(
-		struct {
-			Count int64 `json:"count"`
-		}{
+		contract.PendingTotalChanges{
 			Count: count,
 		},
 	)
@@ -569,7 +569,6 @@ func (h *Handler) GetRecordChangesAfter(
 	}
 
 	changes, err := h.vaultRecordService.GetChangesAfter(
-		authUser,
 		h.vaultDir,
 		vaultID,
 		h.sotID,
@@ -641,7 +640,6 @@ func (h *Handler) SyncRecord(
 	}
 
 	if err := h.vaultRecordService.Sync(
-		authUser,
 		h.vaultDir,
 		h.sotID,
 		vaultID,
@@ -658,6 +656,7 @@ func (h *Handler) handleServiceError(
 	w http.ResponseWriter,
 	err error,
 ) {
+	log.Printf("err: %s", err)
 	switch {
 	case errors.Is(err, VaultServiceCore.ErrPermission):
 		http.Error(
