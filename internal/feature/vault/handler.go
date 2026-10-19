@@ -101,9 +101,9 @@ func (h *Handler) SyncVault(
 		return
 	}
 
-	var changes []contract.PendingVaultChange
+	var pendingChange contract.PendingVaultChange
 
-	if err := json.NewDecoder(r.Body).Decode(&changes); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&pendingChange); err != nil {
 		http.Error(
 			w,
 			"invalid request body",
@@ -113,10 +113,8 @@ func (h *Handler) SyncVault(
 	}
 
 	if err := h.vaultServiceCore.SyncOnSoT(
-		// authUser,
-		// h.vaultDir,
 		h.sotID,
-		changes,
+		&pendingChange,
 	); err != nil {
 		h.handleServiceError(w, err)
 		return
@@ -692,9 +690,9 @@ func (h *Handler) SyncRecord(
 		return
 	}
 
-	var changes []contract.PendingVaultRecordChange
+	var pendingChange contract.PendingVaultRecordChange
 
-	if err := json.NewDecoder(r.Body).Decode(&changes); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&pendingChange); err != nil {
 		http.Error(
 			w,
 			"invalid request body",
@@ -703,7 +701,7 @@ func (h *Handler) SyncRecord(
 		return
 	}
 
-	if len(changes) == 0 {
+	if len(pendingChange.SyncChanges) == 0 {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
@@ -712,7 +710,7 @@ func (h *Handler) SyncRecord(
 		h.vaultDir,
 		h.sotID,
 		vaultID,
-		changes,
+		&pendingChange,
 		nil,
 	); err != nil {
 		h.handleServiceError(w, err)
