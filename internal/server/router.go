@@ -83,7 +83,12 @@ func (r *Router) registerVaultRoutes(
 	// Record
 	r.handle(
 		"GET /vault/{vaultID}/record/blob",
-		handler.RecordBlob,
+		handler.GetRecordBlob,
+	)
+
+	r.handle(
+		"POST /vault/{vaultID}/record/blob",
+		handler.StoreRecordBlob,
 	)
 
 	r.handle(

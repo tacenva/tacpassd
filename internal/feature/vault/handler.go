@@ -3,6 +3,7 @@ package vault
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -393,7 +394,7 @@ func (h *Handler) GetRecordSyncLatestChangeID(
 	)
 }
 
-func (h *Handler) RecordBlob(
+func (h *Handler) GetRecordBlob(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
@@ -426,7 +427,7 @@ func (h *Handler) RecordBlob(
 		return
 	}
 
-	data, err := h.vaultRecordService.Blob(
+	data, err := h.vaultRecordService.GetBlob(
 		authUser,
 		h.vaultDir,
 		vaultID,
@@ -445,6 +446,74 @@ func (h *Handler) RecordBlob(
 	w.WriteHeader(http.StatusOK)
 
 	_, _ = w.Write(data)
+}
+
+func (h *Handler) StoreRecordBlob(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if r.Method != http.MethodPost {
+		http.Error(
+			w,
+			"method not allowed",
+			http.StatusMethodNotAllowed,
+		)
+		return
+	}
+
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(
+			w,
+			"unauthorized",
+			http.StatusUnauthorized,
+		)
+		return
+	}
+
+	vaultID, ok := getVaultID(r)
+	if !ok {
+		http.Error(
+			w,
+			"vault id is required",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	data, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(
+			w,
+			"failed to read request body",
+			http.StatusBadRequest,
+		)
+		return
+	}
+	defer r.Body.Close()
+
+	if len(data) == 0 {
+		http.Error(
+			w,
+			"request body cannot be empty",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	err = h.vaultRecordService.StoreBlob(
+		authUser,
+		h.vaultDir,
+		vaultID,
+		h.sotID,
+		data,
+	)
+	if err != nil {
+		h.handleServiceError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) RecordChangeCount(
