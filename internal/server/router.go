@@ -126,18 +126,13 @@ func (r *Router) registerAccessControlRoutes(
 	)
 
 	r.handle(
-		"PATCH /access-control/{id}/name",
-		handler.ChangeName,
+		"PUT /access-control/{id}",
+		handler.Update,
 	)
 
 	r.handle(
-		"PATCH /access-control/{id}/privilege",
-		handler.ChangePrivilege,
-	)
-
-	r.handle(
-		"POST /access-control/{id}/revoke",
-		handler.Revoke,
+		"PATCH /access-control/{id}/revoke",
+		handler.SetRevoked,
 	)
 
 	r.handle(
@@ -158,5 +153,21 @@ func (r *Router) registerAccessControlRoutes(
 	r.handle(
 		"POST /access-control/users/{userId}/revoke",
 		handler.RevokeUser,
+	)
+
+	// Permission groups
+	r.handle(
+		"GET /access-control/groups",
+		handler.GetGroups,
+	)
+
+	r.handle(
+		"PUT /access-control/groups/{id}",
+		handler.UpdateGroup,
+	)
+
+	r.handle(
+		"DELETE /access-control/groups/{id}",
+		handler.DeleteGroup,
 	)
 }

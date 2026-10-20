@@ -24,12 +24,6 @@ func NewHandler(
 	}
 }
 
-type createRequest struct {
-	Name      string           `json:"name"`
-	Privilege entity.Privilege `json:"privilege"`
-	Group     string           `json:"group"`
-}
-
 type changeNameRequest struct {
 	Name string `json:"name"`
 }
@@ -116,43 +110,30 @@ func (h *Handler) Create(
 ) {
 	authUser := middleware.GetAuthUser(r)
 	if authUser == nil {
-		http.Error(
-			w,
-			"unauthorized",
-			http.StatusUnauthorized,
-		)
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	var request createRequest
-
-	if err := json.NewDecoder(r.Body).Decode(
-		&request,
-	); err != nil {
-		http.Error(
-			w,
-			"invalid request body",
-			http.StatusBadRequest,
-		)
+	var request entity.Permission
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	request.Name = strings.TrimSpace(request.Name)
-
 	if request.Name == "" {
-		http.Error(
-			w,
-			"name is required",
-			http.StatusBadRequest,
-		)
+		http.Error(w, "name is required", http.StatusBadRequest)
 		return
 	}
 
-	vaultaccesslist, permission, keypair, err := h.accesscontrolService.Create(
+	request.Group.Name = strings.TrimSpace(request.Group.Name)
+
+	vaultAccessList, permission, keyPair, err := h.accesscontrolService.Create(
 		authUser,
 		request.Name,
 		request.Privilege,
-		request.Group,
+		&request.Group,
+		request.AutoApprove,
 	)
 	if err != nil {
 		h.handleServiceError(w, err)
@@ -164,74 +145,46 @@ func (h *Handler) Create(
 		Permission      *entity.Permission   `json:"permission"`
 		KeyPair         *keyring.KeyPair     `json:"keypair"`
 	}{
-		VaultAccessList: vaultaccesslist,
+		VaultAccessList: vaultAccessList,
 		Permission:      permission,
-		KeyPair:         keypair,
+		KeyPair:         keyPair,
 	}
 
-	writeJSON(
-		w,
-		http.StatusCreated,
-		response,
-	)
+	writeJSON(w, http.StatusCreated, response)
 }
 
-func (h *Handler) ChangeName(
+func (h *Handler) Update(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
 	authUser := middleware.GetAuthUser(r)
 	if authUser == nil {
-		http.Error(
-			w,
-			"unauthorized",
-			http.StatusUnauthorized,
-		)
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	id := strings.TrimSpace(
-		r.PathValue("id"),
-	)
-
+	id := strings.TrimSpace(r.PathValue("id"))
 	if id == "" {
-		http.Error(
-			w,
-			"access control id is required",
-			http.StatusBadRequest,
-		)
+		http.Error(w, "access control id is required", http.StatusBadRequest)
 		return
 	}
 
-	var request changeNameRequest
-
-	if err := json.NewDecoder(r.Body).Decode(
-		&request,
-	); err != nil {
-		http.Error(
-			w,
-			"invalid request body",
-			http.StatusBadRequest,
-		)
+	var request entity.Permission
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
+	request.ID = id
 	request.Name = strings.TrimSpace(request.Name)
+	request.Group.Name = strings.TrimSpace(request.Group.Name)
 
 	if request.Name == "" {
-		http.Error(
-			w,
-			"name is required",
-			http.StatusBadRequest,
-		)
+		http.Error(w, "name is required", http.StatusBadRequest)
 		return
 	}
 
-	if err := h.accesscontrolService.ChangeName(
-		authUser,
-		id,
-		request.Name,
-	); err != nil {
+	if err := h.accesscontrolService.Update(authUser, &request); err != nil {
 		h.handleServiceError(w, err)
 		return
 	}
@@ -239,94 +192,43 @@ func (h *Handler) ChangeName(
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *Handler) ChangePrivilege(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
+func (h *Handler) SetRevoked(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Revoked *bool `json:"revoked"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.Revoked == nil {
+		http.Error(w, "Field revoked is required", http.StatusBadRequest)
+		return
+	}
+
+	id := r.PathValue("id")
+	if id == "" {
+		http.Error(w, "Permission ID is required", http.StatusBadRequest)
+		return
+	}
+
 	authUser := middleware.GetAuthUser(r)
 	if authUser == nil {
-		http.Error(
-			w,
-			"unauthorized",
-			http.StatusUnauthorized,
-		)
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	permissionID := strings.TrimSpace(
-		r.PathValue("id"),
-	)
-
-	if permissionID == "" {
-		http.Error(
-			w,
-			"id is required",
-			http.StatusBadRequest,
-		)
+	if err := h.accesscontrolService.SetRevoked(authUser, id, *req.Revoked); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	var request changePrivilegeRequest
-
-	if err := json.NewDecoder(r.Body).Decode(
-		&request,
-	); err != nil {
-		http.Error(
-			w,
-			"invalid request body",
-			http.StatusBadRequest,
-		)
-		return
-	}
-
-	if err := h.accesscontrolService.ChangePrivilege(
-		authUser,
-		permissionID,
-		request.Privilege,
-	); err != nil {
-		h.handleServiceError(w, err)
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func (h *Handler) Revoke(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
-		http.Error(
-			w,
-			"unauthorized",
-			http.StatusUnauthorized,
-		)
-		return
-	}
-
-	permissionID := strings.TrimSpace(
-		r.PathValue("id"),
-	)
-
-	if permissionID == "" {
-		http.Error(
-			w,
-			"id is required",
-			http.StatusBadRequest,
-		)
-		return
-	}
-
-	if err := h.accesscontrolService.Revoke(
-		authUser,
-		permissionID,
-	); err != nil {
-		h.handleServiceError(w, err)
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"id":      id,
+		"revoked": *req.Revoked,
+	})
 }
 
 func (h *Handler) UserList(
@@ -532,6 +434,87 @@ func (h *Handler) DeletePermission(
 		authUser,
 		permissionID,
 	); err != nil {
+		h.handleServiceError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) GetGroups(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	groups, err := h.accesscontrolService.GetGroups(authUser)
+	if err != nil {
+		h.handleServiceError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, groups)
+}
+
+func (h *Handler) UpdateGroup(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	groupID := strings.TrimSpace(r.PathValue("id"))
+	if groupID == "" {
+		http.Error(w, "group id is required", http.StatusBadRequest)
+		return
+	}
+
+	var request entity.PermissionGroup
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	request.ID = groupID
+	request.Name = strings.TrimSpace(request.Name)
+
+	if request.Name == "" {
+		http.Error(w, "group name is required", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.accesscontrolService.UpdateGroup(authUser, &request); err != nil {
+		h.handleServiceError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) DeleteGroup(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	groupID := strings.TrimSpace(r.PathValue("id"))
+	if groupID == "" {
+		http.Error(w, "group id is required", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.accesscontrolService.DeleteGroup(authUser, groupID); err != nil {
 		h.handleServiceError(w, err)
 		return
 	}
