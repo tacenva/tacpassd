@@ -31,7 +31,7 @@ func NewHandler(
 		vaultServiceCore:   vaultServiceCore,
 		vaultRecordService: vaultServiceCore.GetVaultRecordService(),
 		vaultDir:           cfg.VaultDir(),
-		sotID:              cfg.SoTULID,
+		sotID:              cfg.SotID,
 	}
 }
 
@@ -58,8 +58,19 @@ func (h *Handler) ConnectedPublicKeys(
 		return
 	}
 
-	permissionList, err := h.vaultServiceCore.ConnectedPublicKeys(
+	groupIDs := strings.Split(
+		r.URL.Query().Get("group_ids"),
+		",",
+	)
+
+	for i := range groupIDs {
+		groupIDs[i] = strings.TrimSpace(groupIDs[i])
+	}
+
+	permissionList, err := h.vaultServiceCore.GetPublicKeysByGroupIDs(
 		authUser,
+		groupIDs,
+		h.sotID,
 	)
 	if err != nil {
 		h.handleServiceError(w, err)
@@ -115,6 +126,7 @@ func (h *Handler) SyncVault(
 	if err := h.vaultServiceCore.SyncOnSoT(
 		h.sotID,
 		&pendingChange,
+		authUser.Hostname,
 	); err != nil {
 		h.handleServiceError(w, err)
 		return
@@ -146,7 +158,7 @@ func (h *Handler) GetVaultSyncLatestChangeID(
 		return
 	}
 
-	lastChangeID, err := h.vaultServiceCore.GetSyncLatestChangeId(
+	lastChangeID, err := h.vaultServiceCore.GetSyncLatestChangeID(
 		h.sotID,
 	)
 	if err != nil {
@@ -197,7 +209,7 @@ func (h *Handler) VaultChangeCount(
 		r.URL.Query().Get("start_change_id"),
 	)
 
-	count, err := h.vaultServiceCore.GetChangeCount(
+	pendingTotalChanges, err := h.vaultServiceCore.GetChangeCount(
 		h.sotID,
 		startChangeID,
 	)
@@ -214,9 +226,7 @@ func (h *Handler) VaultChangeCount(
 	w.WriteHeader(http.StatusOK)
 
 	_ = json.NewEncoder(w).Encode(
-		contract.PendingTotalChanges{
-			Count: count,
-		},
+		pendingTotalChanges,
 	)
 }
 
@@ -316,7 +326,7 @@ func (h *Handler) ListVault(
 		return
 	}
 
-	vaultAccessList, err := h.vaultServiceCore.VaultAccessList(
+	vaultAccessList, err := h.vaultServiceCore.VaultList(
 		authUser,
 	)
 	if err != nil {
@@ -706,12 +716,12 @@ func (h *Handler) SyncRecord(
 		return
 	}
 
-	if err := h.vaultRecordService.Sync(
+	if err := h.vaultRecordService.SyncOnSoT(
+		authUser,
 		h.vaultDir,
 		h.sotID,
 		vaultID,
 		&pendingChange,
-		nil,
 	); err != nil {
 		h.handleServiceError(w, err)
 		return

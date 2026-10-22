@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	coreAC "github.com/tacenva/tacpass-core/accesscontrol"
+	"github.com/tacenva/tacpass-core/config"
 	"github.com/tacenva/tacpass-core/entity"
 	"github.com/tacenva/tacpass-core/util/keyring"
 	"github.com/tacenva/tacpassd/internal/middleware"
@@ -14,22 +15,17 @@ import (
 
 type Handler struct {
 	accesscontrolService *coreAC.Service
+	sotID                string
 }
 
 func NewHandler(
 	accesscontrolService *coreAC.Service,
+	cfg *config.Config,
 ) *Handler {
 	return &Handler{
 		accesscontrolService: accesscontrolService,
+		sotID:                cfg.SotID,
 	}
-}
-
-type changeNameRequest struct {
-	Name string `json:"name"`
-}
-
-type changePrivilegeRequest struct {
-	Privilege entity.Privilege `json:"privilege"`
 }
 
 func (h *Handler) List(
@@ -61,48 +57,48 @@ func (h *Handler) List(
 	)
 }
 
-func (h *Handler) Get(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
-		http.Error(
-			w,
-			"unauthorized",
-			http.StatusUnauthorized,
-		)
-		return
-	}
+// func (h *Handler) Get(
+// 	w http.ResponseWriter,
+// 	r *http.Request,
+// ) {
+// 	authUser := middleware.GetAuthUser(r)
+// 	if authUser == nil {
+// 		http.Error(
+// 			w,
+// 			"unauthorized",
+// 			http.StatusUnauthorized,
+// 		)
+// 		return
+// 	}
 
-	permissionID := strings.TrimSpace(
-		r.PathValue("id"),
-	)
+// 	permissionID := strings.TrimSpace(
+// 		r.PathValue("id"),
+// 	)
 
-	if permissionID == "" {
-		http.Error(
-			w,
-			"id is required",
-			http.StatusBadRequest,
-		)
-		return
-	}
+// 	if permissionID == "" {
+// 		http.Error(
+// 			w,
+// 			"id is required",
+// 			http.StatusBadRequest,
+// 		)
+// 		return
+// 	}
 
-	permission, err := h.accesscontrolService.Get(
-		authUser,
-		permissionID,
-	)
-	if err != nil {
-		h.handleServiceError(w, err)
-		return
-	}
+// 	permission, err := h.accesscontrolService.Get(
+// 		authUser,
+// 		permissionID,
+// 	)
+// 	if err != nil {
+// 		h.handleServiceError(w, err)
+// 		return
+// 	}
 
-	writeJSON(
-		w,
-		http.StatusOK,
-		permission,
-	)
-}
+// 	writeJSON(
+// 		w,
+// 		http.StatusOK,
+// 		permission,
+// 	)
+// }
 
 func (h *Handler) Create(
 	w http.ResponseWriter,
@@ -128,12 +124,13 @@ func (h *Handler) Create(
 
 	request.Group.Name = strings.TrimSpace(request.Group.Name)
 
-	vaultAccessList, permission, keyPair, err := h.accesscontrolService.Create(
+	permission, keyPair, err := h.accesscontrolService.Create(
 		authUser,
 		request.Name,
 		request.Privilege,
 		&request.Group,
 		request.AutoApprove,
+		h.sotID,
 	)
 	if err != nil {
 		h.handleServiceError(w, err)
@@ -141,13 +138,11 @@ func (h *Handler) Create(
 	}
 
 	response := struct {
-		VaultAccessList []entity.VaultAccess `json:"vault_access"`
-		Permission      *entity.Permission   `json:"permission"`
-		KeyPair         *keyring.KeyPair     `json:"keypair"`
+		Permission *entity.Permission `json:"permission"`
+		KeyPair    *keyring.KeyPair   `json:"keypair"`
 	}{
-		VaultAccessList: vaultAccessList,
-		Permission:      permission,
-		KeyPair:         keyPair,
+		Permission: permission,
+		KeyPair:    keyPair,
 	}
 
 	writeJSON(w, http.StatusCreated, response)
@@ -184,7 +179,7 @@ func (h *Handler) Update(
 		return
 	}
 
-	if err := h.accesscontrolService.Update(authUser, &request); err != nil {
+	if err := h.accesscontrolService.Update(authUser, &request, h.sotID); err != nil {
 		h.handleServiceError(w, err)
 		return
 	}
@@ -219,7 +214,7 @@ func (h *Handler) SetRevoked(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.accesscontrolService.SetRevoked(authUser, id, *req.Revoked); err != nil {
+	if err := h.accesscontrolService.SetRevoked(authUser, id, h.sotID, *req.Revoked); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -261,6 +256,7 @@ func (h *Handler) UserList(
 	users, err := h.accesscontrolService.UserList(
 		authUser,
 		permissionID,
+		h.sotID,
 	)
 	if err != nil {
 		h.handleServiceError(w, err)
@@ -304,6 +300,7 @@ func (h *Handler) ApproveUser(
 	user, err := h.accesscontrolService.ApproveUser(
 		authUser,
 		userID,
+		h.sotID,
 	)
 	if err != nil {
 		h.handleServiceError(w, err)
@@ -347,6 +344,7 @@ func (h *Handler) RevokeUser(
 	user, err := h.accesscontrolService.RevokeUser(
 		authUser,
 		userID,
+		h.sotID,
 	)
 	if err != nil {
 		h.handleServiceError(w, err)
@@ -433,6 +431,7 @@ func (h *Handler) DeletePermission(
 	if err := h.accesscontrolService.DeletePermission(
 		authUser,
 		permissionID,
+		h.sotID,
 	); err != nil {
 		h.handleServiceError(w, err)
 		return
@@ -451,7 +450,9 @@ func (h *Handler) GetGroups(
 		return
 	}
 
-	groups, err := h.accesscontrolService.GetGroups(authUser)
+	groups, err := h.accesscontrolService.GetGroupDescendants(
+		authUser,
+	)
 	if err != nil {
 		h.handleServiceError(w, err)
 		return
@@ -490,7 +491,7 @@ func (h *Handler) UpdateGroup(
 		return
 	}
 
-	if err := h.accesscontrolService.UpdateGroup(authUser, &request); err != nil {
+	if err := h.accesscontrolService.UpdateGroup(authUser, &request, h.sotID); err != nil {
 		h.handleServiceError(w, err)
 		return
 	}
@@ -514,7 +515,7 @@ func (h *Handler) DeleteGroup(
 		return
 	}
 
-	if err := h.accesscontrolService.DeleteGroup(authUser, groupID); err != nil {
+	if err := h.accesscontrolService.DeleteGroup(authUser, groupID, h.sotID); err != nil {
 		h.handleServiceError(w, err)
 		return
 	}

@@ -115,10 +115,10 @@ func (r *Router) registerAccessControlRoutes(
 		handler.List,
 	)
 
-	r.handle(
-		"GET /access-control/{id}",
-		handler.Get,
-	)
+	// r.handle(
+	// 	"GET /access-control/{id}",
+	// 	handler.Get,
+	// )
 
 	r.handle(
 		"POST /access-control",

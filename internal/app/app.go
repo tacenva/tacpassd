@@ -75,12 +75,14 @@ func Run(dev bool) error {
 		return initAdminPrivilege(
 			services,
 			*initAdmin,
+			cfg.SotID,
 		)
 	}
 
 	if *approve {
 		return approveUserInteractive(
 			services,
+			cfg.SotID,
 		)
 	}
 
@@ -100,6 +102,7 @@ func serve(
 
 	accesscontrolHandler := accesscontrol.NewHandler(
 		services.AccessControl,
+		cfg,
 	)
 
 	vaultHandler := vault.NewHandler(
@@ -222,9 +225,11 @@ func OpenSQLite(
 func initAdminPrivilege(
 	services *coreapp.Services,
 	name string,
+	sotID string,
 ) error {
 	_, keypair, err := services.AccessControl.InitAdminPrivilege(
 		name,
+		sotID,
 	)
 	if err != nil {
 		return err
@@ -241,6 +246,7 @@ func initAdminPrivilege(
 
 func approveUserInteractive(
 	services *coreapp.Services,
+	sotID string,
 ) error {
 	permissions, err := services.AccessControl.ListInternal()
 	if err != nil {
@@ -275,6 +281,7 @@ func approveUserInteractive(
 
 	permissionData, err := services.AccessControl.GetInternal(
 		selectedPermission.ID,
+		sotID,
 	)
 	if err != nil {
 		return err

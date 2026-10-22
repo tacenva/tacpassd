@@ -6,22 +6,12 @@ import (
 	"strings"
 
 	"github.com/tacenva/tacpass-core/auth"
+	"github.com/tacenva/tacpass-core/contract"
 	"github.com/tacenva/tacpass-core/entity"
 )
 
 type Handler struct {
 	authService *auth.Service
-}
-
-type EnrollRequest struct {
-	Hostname  string `json:"hostname"`
-	PublicKey string `json:"public_key"`
-}
-
-type EnrollResponse struct {
-	SoTHostname string `json:"sot_hostname"`
-	Status      string `json:"status"`
-	AuthToken   string `json:"auth_token"`
 }
 
 func NewHandler(
@@ -47,7 +37,7 @@ func (h *Handler) Enroll(
 
 	defer r.Body.Close()
 
-	var request EnrollRequest
+	var request contract.EnrollRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		http.Error(
@@ -84,9 +74,11 @@ func (h *Handler) Enroll(
 		return
 	}
 
-	sotHostname, authToken, err := h.authService.Enroll(
-		request.Hostname,
-		request.PublicKey,
+	response, err := h.authService.Enroll(
+		&contract.EnrollRequest{
+			Hostname:  request.Hostname,
+			PublicKey: request.PublicKey,
+		},
 		entity.UserStatusPending,
 	)
 	if err != nil {
@@ -96,12 +88,6 @@ func (h *Handler) Enroll(
 			http.StatusInternalServerError,
 		)
 		return
-	}
-
-	response := EnrollResponse{
-		Status:      "pending",
-		AuthToken:   authToken,
-		SoTHostname: sotHostname,
 	}
 
 	w.Header().Set(
