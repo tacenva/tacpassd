@@ -45,9 +45,19 @@ func (r *Router) handle(
 func (r *Router) registerAuthRoutes(
 	handler *auth.Handler,
 ) {
-	r.mux.HandleFunc(
+	r.mux.HandleFunc( // dont use middleware
 		"POST /auth/enroll",
 		handler.Enroll,
+	)
+
+	r.mux.HandleFunc( // dont use middleware
+		"GET /auth/status",
+		handler.CheckStatus,
+	)
+
+	r.handle(
+		"GET /auth/group",
+		handler.GroupData,
 	)
 }
 
@@ -56,8 +66,8 @@ func (r *Router) registerVaultRoutes(
 ) {
 	// Vault
 	r.handle(
-		"GET /vault/connected-public-keys",
-		handler.ConnectedPublicKeys,
+		"QUERY /vault/public-keys",
+		handler.GetPublicKeys,
 	)
 
 	r.handle(
@@ -158,7 +168,7 @@ func (r *Router) registerAccessControlRoutes(
 	// Permission groups
 	r.handle(
 		"GET /access-control/groups",
-		handler.GetGroups,
+		handler.GroupList,
 	)
 
 	r.handle(

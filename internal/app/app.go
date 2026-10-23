@@ -98,6 +98,7 @@ func serve(
 ) error {
 	authHandler := auth.NewHandler(
 		services.Auth,
+		cfg,
 	)
 
 	accesscontrolHandler := accesscontrol.NewHandler(

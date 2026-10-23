@@ -6,19 +6,24 @@ import (
 	"strings"
 
 	"github.com/tacenva/tacpass-core/auth"
+	"github.com/tacenva/tacpass-core/config"
 	"github.com/tacenva/tacpass-core/contract"
 	"github.com/tacenva/tacpass-core/entity"
+	"github.com/tacenva/tacpassd/internal/middleware"
 )
 
 type Handler struct {
 	authService *auth.Service
+	sotID       string
 }
 
 func NewHandler(
 	authService *auth.Service,
+	cfg *config.Config,
 ) *Handler {
 	return &Handler{
 		authService: authService,
+		sotID:       cfg.SotID,
 	}
 }
 
@@ -27,58 +32,34 @@ func (h *Handler) Enroll(
 	r *http.Request,
 ) {
 	if r.Method != http.MethodPost {
-		http.Error(
-			w,
-			"method not allowed",
-			http.StatusMethodNotAllowed,
-		)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	defer r.Body.Close()
 
 	var request contract.EnrollRequest
-
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		http.Error(
-			w,
-			"invalid request body",
-			http.StatusBadRequest,
-		)
+		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	request.Hostname = strings.TrimSpace(
-		request.Hostname,
-	)
-
-	request.PublicKey = strings.TrimSpace(
-		request.PublicKey,
-	)
+	request.Hostname = strings.TrimSpace(request.Hostname)
+	request.PublicKey = strings.TrimSpace(request.PublicKey)
 
 	if request.Hostname == "" {
-		http.Error(
-			w,
-			"hostname is required",
-			http.StatusBadRequest,
-		)
+		http.Error(w, "hostname is required", http.StatusBadRequest)
 		return
 	}
 
 	if request.PublicKey == "" {
-		http.Error(
-			w,
-			"public key is required",
-			http.StatusBadRequest,
-		)
+		http.Error(w, "public key is required", http.StatusBadRequest)
 		return
 	}
 
 	response, err := h.authService.Enroll(
-		&contract.EnrollRequest{
-			Hostname:  request.Hostname,
-			PublicKey: request.PublicKey,
-		},
+		&request,
+		h.sotID,
 		entity.UserStatusPending,
 	)
 	if err != nil {
@@ -90,12 +71,94 @@ func (h *Handler) Enroll(
 		return
 	}
 
-	w.Header().Set(
-		"Content-Type",
-		"application/json",
-	)
+	writeJSON(w, http.StatusAccepted, response)
+}
 
-	w.WriteHeader(http.StatusAccepted)
+func (h *Handler) CheckStatus(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 
-	_ = json.NewEncoder(w).Encode(response)
+	token := bearerToken(r)
+	if token == "" {
+		http.Error(
+			w,
+			"authorization token is required",
+			http.StatusUnauthorized,
+		)
+		return
+	}
+
+	response, err := h.authService.CheckStatus(token, h.sotID)
+	if err != nil {
+		http.Error(
+			w,
+			"failed to check status",
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
+func (h *Handler) GroupData(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if r.Method != http.MethodGet {
+		http.Error(
+			w,
+			"method not allowed",
+			http.StatusMethodNotAllowed,
+		)
+		return
+	}
+
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(
+			w,
+			"unauthorized",
+			http.StatusUnauthorized,
+		)
+		return
+	}
+
+	groupData, err := h.authService.GroupAssignment(authUser, h.sotID)
+	if err != nil {
+		http.Error(
+			w,
+			"failed to get group data",
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, groupData)
+}
+
+func bearerToken(r *http.Request) string {
+	const prefix = "Bearer "
+
+	header := r.Header.Get("Authorization")
+	if !strings.HasPrefix(header, prefix) {
+		return ""
+	}
+
+	return strings.TrimSpace(strings.TrimPrefix(header, prefix))
+}
+
+func writeJSON(
+	w http.ResponseWriter,
+	statusCode int,
+	data any,
+) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	_ = json.NewEncoder(w).Encode(data)
 }

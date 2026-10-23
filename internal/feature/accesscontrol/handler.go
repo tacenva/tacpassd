@@ -57,49 +57,6 @@ func (h *Handler) List(
 	)
 }
 
-// func (h *Handler) Get(
-// 	w http.ResponseWriter,
-// 	r *http.Request,
-// ) {
-// 	authUser := middleware.GetAuthUser(r)
-// 	if authUser == nil {
-// 		http.Error(
-// 			w,
-// 			"unauthorized",
-// 			http.StatusUnauthorized,
-// 		)
-// 		return
-// 	}
-
-// 	permissionID := strings.TrimSpace(
-// 		r.PathValue("id"),
-// 	)
-
-// 	if permissionID == "" {
-// 		http.Error(
-// 			w,
-// 			"id is required",
-// 			http.StatusBadRequest,
-// 		)
-// 		return
-// 	}
-
-// 	permission, err := h.accesscontrolService.Get(
-// 		authUser,
-// 		permissionID,
-// 	)
-// 	if err != nil {
-// 		h.handleServiceError(w, err)
-// 		return
-// 	}
-
-// 	writeJSON(
-// 		w,
-// 		http.StatusOK,
-// 		permission,
-// 	)
-// }
-
 func (h *Handler) Create(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -440,7 +397,7 @@ func (h *Handler) DeletePermission(
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *Handler) GetGroups(
+func (h *Handler) GroupList(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
@@ -450,8 +407,13 @@ func (h *Handler) GetGroups(
 		return
 	}
 
-	groups, err := h.accesscontrolService.GetGroupDescendants(
-		authUser,
+	if !authUser.HasAdminPermission() {
+		h.handleServiceError(w, coreAC.ErrPermission)
+		return
+	}
+
+	groups, err := h.accesscontrolService.GroupList(
+		h.sotID,
 	)
 	if err != nil {
 		h.handleServiceError(w, err)

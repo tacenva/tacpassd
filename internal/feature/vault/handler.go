@@ -35,11 +35,11 @@ func NewHandler(
 	}
 }
 
-func (h *Handler) ConnectedPublicKeys(
+func (h *Handler) GetPublicKeys(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	if r.Method != http.MethodGet {
+	if r.Method != "QUERY" {
 		http.Error(
 			w,
 			"method not allowed",
@@ -58,13 +58,33 @@ func (h *Handler) ConnectedPublicKeys(
 		return
 	}
 
-	groupIDs := strings.Split(
-		r.URL.Query().Get("group_ids"),
-		",",
-	)
+	var req contract.PermissionGroupReq
 
-	for i := range groupIDs {
-		groupIDs[i] = strings.TrimSpace(groupIDs[i])
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(
+			w,
+			"invalid request body",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	groupIDs := make([]string, 0, len(req.GroupIDs))
+
+	for _, id := range req.GroupIDs {
+		id = strings.TrimSpace(id)
+		if id != "" {
+			groupIDs = append(groupIDs, id)
+		}
+	}
+
+	if len(groupIDs) == 0 {
+		http.Error(
+			w,
+			"group_ids is required",
+			http.StatusBadRequest,
+		)
+		return
 	}
 
 	permissionList, err := h.vaultServiceCore.GetPublicKeysByGroupIDs(
@@ -84,9 +104,30 @@ func (h *Handler) ConnectedPublicKeys(
 
 	w.WriteHeader(http.StatusOK)
 
-	_ = json.NewEncoder(w).Encode(
-		permissionList,
+	_ = json.NewEncoder(w).Encode(permissionList)
+}
+
+func (h *Handler) ParseSyncQuery(
+	w http.ResponseWriter,
+	r *http.Request,
+) (string, int, error) {
+	startChangeID := strings.TrimSpace(
+		r.URL.Query().Get("start_change_id"),
 	)
+
+	limitValue := strings.TrimSpace(
+		r.URL.Query().Get("limit"),
+	)
+	if limitValue == "" {
+		return "", 0, errors.New("limit is required")
+	}
+
+	limit, err := strconv.Atoi(limitValue)
+	if err != nil || limit < 0 {
+		return "", 0, errors.New("limit must be a positive integer")
+	}
+
+	return startChangeID, limit, nil
 }
 
 func (h *Handler) SyncVault(
@@ -123,16 +164,34 @@ func (h *Handler) SyncVault(
 		return
 	}
 
-	if err := h.vaultServiceCore.SyncOnSoT(
+	startChangeID, limit, err := h.ParseSyncQuery(
+		w,
+		r,
+	)
+	if err != nil {
+		http.Error(
+			w,
+			err.Error(),
+			http.StatusBadRequest,
+		)
+	}
+
+	successList, err := h.vaultServiceCore.SyncOnSot(
 		h.sotID,
-		&pendingChange,
+		authUser.Permission.GroupID,
 		authUser.Hostname,
-	); err != nil {
+		startChangeID,
+		limit,
+		&pendingChange,
+	)
+	if err != nil {
 		h.handleServiceError(w, err)
 		return
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+
+	_ = json.NewEncoder(w).Encode(successList)
 }
 
 func (h *Handler) GetVaultSyncLatestChangeID(
@@ -253,34 +312,19 @@ func (h *Handler) GetVaultChangesAfter(
 		return
 	}
 
-	startChangeID := strings.TrimSpace(
-		r.URL.Query().Get("start_change_id"),
+	startChangeID, limit, err := h.ParseSyncQuery(
+		w,
+		r,
 	)
-
-	limitValue := strings.TrimSpace(
-		r.URL.Query().Get("limit"),
-	)
-	if limitValue == "" {
+	if err != nil {
 		http.Error(
 			w,
-			"limit is required",
+			err.Error(),
 			http.StatusBadRequest,
 		)
-		return
 	}
 
-	limit, err := strconv.Atoi(limitValue)
-	if err != nil || limit <= 0 {
-		http.Error(
-			w,
-			"limit must be a positive integer",
-			http.StatusBadRequest,
-		)
-		return
-	}
-
-	changes, err := h.vaultServiceCore.GetChangesAfterOnSoT(
-		authUser,
+	changes, err := h.vaultServiceCore.GetChangesAfterOnSot(
 		h.sotID,
 		startChangeID,
 		limit,
@@ -296,9 +340,6 @@ func (h *Handler) GetVaultChangesAfter(
 	)
 
 	w.WriteHeader(http.StatusOK)
-
-	changesJSON, _ := json.MarshalIndent(changes, "", "  ")
-	log.Printf("[DEBUG] changes:\n%s", string(changesJSON))
 
 	_ = json.NewEncoder(w).Encode(changes)
 }
@@ -619,30 +660,16 @@ func (h *Handler) GetRecordChangesAfter(
 		return
 	}
 
-	startChangeID := strings.TrimSpace(
-		r.URL.Query().Get("start_change_id"),
+	startChangeID, limit, err := h.ParseSyncQuery(
+		w,
+		r,
 	)
-
-	limitValue := strings.TrimSpace(
-		r.URL.Query().Get("limit"),
-	)
-	if limitValue == "" {
+	if err != nil {
 		http.Error(
 			w,
-			"limit is required",
+			err.Error(),
 			http.StatusBadRequest,
 		)
-		return
-	}
-
-	limit, err := strconv.Atoi(limitValue)
-	if err != nil || limit <= 0 {
-		http.Error(
-			w,
-			"limit must be a positive integer",
-			http.StatusBadRequest,
-		)
-		return
 	}
 
 	changes, err := h.vaultRecordService.GetChangesAfter(
@@ -716,18 +743,34 @@ func (h *Handler) SyncRecord(
 		return
 	}
 
-	if err := h.vaultRecordService.SyncOnSoT(
+	startChangeID, limit, err := h.ParseSyncQuery(
+		w,
+		r,
+	)
+	if err != nil {
+		http.Error(
+			w,
+			err.Error(),
+			http.StatusBadRequest,
+		)
+	}
+
+	successList, err := h.vaultRecordService.SyncOnSot(
 		authUser,
 		h.vaultDir,
 		h.sotID,
 		vaultID,
+		startChangeID,
+		limit,
 		&pendingChange,
-	); err != nil {
+	)
+	if err != nil {
 		h.handleServiceError(w, err)
 		return
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+	_ = json.NewEncoder(w).Encode(successList)
 }
 
 func (h *Handler) handleServiceError(
