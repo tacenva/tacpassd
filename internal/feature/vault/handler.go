@@ -178,6 +178,7 @@ func (h *Handler) SyncVault(
 
 	successList, err := h.vaultServiceCore.SyncOnSot(
 		h.sotID,
+		authUser.PermissionID,
 		authUser.Permission.GroupID,
 		authUser.Hostname,
 		startChangeID,
@@ -326,6 +327,7 @@ func (h *Handler) GetVaultChangesAfter(
 
 	changes, err := h.vaultServiceCore.GetChangesAfterOnSot(
 		h.sotID,
+		authUser.PermissionID,
 		startChangeID,
 		limit,
 	)
