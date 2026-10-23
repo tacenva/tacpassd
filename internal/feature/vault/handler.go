@@ -755,7 +755,7 @@ func (h *Handler) SyncRecord(
 		)
 	}
 
-	successList, err := h.vaultRecordService.SyncOnSot(
+	err = h.vaultRecordService.SyncOnSot(
 		authUser,
 		h.vaultDir,
 		h.sotID,
@@ -770,7 +770,6 @@ func (h *Handler) SyncRecord(
 	}
 
 	w.WriteHeader(http.StatusNoContent)
-	_ = json.NewEncoder(w).Encode(successList)
 }
 
 func (h *Handler) handleServiceError(
