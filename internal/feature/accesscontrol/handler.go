@@ -227,10 +227,14 @@ func (h *Handler) UserList(
 	)
 }
 
-func (h *Handler) ApproveUser(
+func (h *Handler) SetUserStatus(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
+	var req struct {
+		Status entity.UserStatus `json:"status"`
+	}
+
 	authUser := middleware.GetAuthUser(r)
 	if authUser == nil {
 		http.Error(
@@ -254,65 +258,21 @@ func (h *Handler) ApproveUser(
 		return
 	}
 
-	user, err := h.accesscontrolService.ApproveUser(
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	err := h.accesscontrolService.SetUserStatus(
 		authUser,
-		userID,
 		h.sotID,
+		userID,
+		req.Status,
 	)
 	if err != nil {
 		h.handleServiceError(w, err)
 		return
 	}
-
-	writeJSON(
-		w,
-		http.StatusOK,
-		user,
-	)
-}
-
-func (h *Handler) RevokeUser(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
-		http.Error(
-			w,
-			"unauthorized",
-			http.StatusUnauthorized,
-		)
-		return
-	}
-
-	userID := strings.TrimSpace(
-		r.PathValue("userId"),
-	)
-
-	if userID == "" {
-		http.Error(
-			w,
-			"user id is required",
-			http.StatusBadRequest,
-		)
-		return
-	}
-
-	user, err := h.accesscontrolService.RevokeUser(
-		authUser,
-		userID,
-		h.sotID,
-	)
-	if err != nil {
-		h.handleServiceError(w, err)
-		return
-	}
-
-	writeJSON(
-		w,
-		http.StatusOK,
-		user,
-	)
 }
 
 func (h *Handler) handleServiceError(

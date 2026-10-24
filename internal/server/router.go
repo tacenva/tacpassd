@@ -25,6 +25,7 @@ func NewRouter(
 		authMiddleware: authMiddleware,
 	}
 
+	router.registerHealthRoutes()
 	router.registerAuthRoutes(authHandler)
 	router.registerAccessControlRoutes(accessControlHandler)
 	router.registerVaultRoutes(vaultHandler)
@@ -40,6 +41,15 @@ func (r *Router) handle(
 		pattern,
 		r.authMiddleware.Authenticate(handler),
 	)
+}
+
+func (r *Router) registerHealthRoutes() {
+	r.mux.HandleFunc("GET /health", func(
+		w http.ResponseWriter,
+		req *http.Request,
+	) {
+		w.WriteHeader(http.StatusNoContent)
+	})
 }
 
 func (r *Router) registerAuthRoutes(
@@ -125,11 +135,6 @@ func (r *Router) registerAccessControlRoutes(
 		handler.List,
 	)
 
-	// r.handle(
-	// 	"GET /access-control/{id}",
-	// 	handler.Get,
-	// )
-
 	r.handle(
 		"POST /access-control",
 		handler.Create,
@@ -141,28 +146,24 @@ func (r *Router) registerAccessControlRoutes(
 	)
 
 	r.handle(
-		"PATCH /access-control/{id}/revoke",
-		handler.SetRevoked,
-	)
-
-	r.handle(
 		"DELETE /access-control/{id}",
 		handler.DeletePermission,
 	)
 
+	r.handle(
+		"PATCH /access-control/{id}/revoke",
+		handler.SetRevoked,
+	)
+
+	// User
 	r.handle(
 		"GET /access-control/{id}/users",
 		handler.UserList,
 	)
 
 	r.handle(
-		"POST /access-control/users/{userId}/approve",
-		handler.ApproveUser,
-	)
-
-	r.handle(
-		"POST /access-control/users/{userId}/revoke",
-		handler.RevokeUser,
+		"PATCH /access-control/users/{userId}/approval",
+		handler.SetUserStatus,
 	)
 
 	// Permission groups

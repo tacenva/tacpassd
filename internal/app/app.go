@@ -324,7 +324,7 @@ func approveUserInteractive(
 
 	selectedUser := users[userIndex]
 
-	approvedUser, err := services.AccessControl.ApproveUserInternal(
+	err = services.AccessControl.ApproveUserInternal(
 		selectedUser.ID,
 	)
 	if err != nil {
@@ -333,8 +333,8 @@ func approveUserInteractive(
 
 	fmt.Printf(
 		"\nuser approved: id=%s hostname=%s\n",
-		approvedUser.ID,
-		approvedUser.Hostname,
+		selectedUser.ID,
+		selectedUser.Hostname,
 	)
 
 	return nil
