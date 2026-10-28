@@ -6,8 +6,9 @@ import (
 	"net/http"
 
 	"github.com/tacenva/database"
-	coreapp "github.com/tacenva/tacpass-core/app"
-	"github.com/tacenva/tacpass-core/config"
+	"github.com/tacenva/tacenva-core/config"
+	tacenvaentity "github.com/tacenva/tacenva-core/entity"
+	tacpassapp "github.com/tacenva/tacpass-core/app"
 	"github.com/tacenva/tacpassd/internal/feature/accesscontrol"
 	"github.com/tacenva/tacpassd/internal/feature/auth"
 	"github.com/tacenva/tacpassd/internal/feature/vault"
@@ -24,13 +25,13 @@ func Run(dev bool) error {
 	initAdmin := flag.String(
 		"init-admin",
 		"",
-		"init permission with admin privilege",
+		"init admin",
 	)
 
-	approve := flag.Bool(
-		"approve",
+	userStatus := flag.Bool(
+		"user-status",
 		false,
-		"approve a user interactively",
+		"change a user's status interactively (approve/revoke)",
 	)
 
 	version := flag.Bool(
@@ -58,7 +59,7 @@ func Run(dev bool) error {
 		return err
 	}
 
-	if err := coreapp.Migrate(sqliteDB); err != nil {
+	if err := tacpassapp.Migrate(sqliteDB); err != nil {
 		return err
 	}
 
@@ -66,7 +67,7 @@ func Run(dev bool) error {
 		cfg.VaultDir(),
 	)
 
-	services := coreapp.NewServices(
+	services := tacpassapp.NewServices(
 		sqliteDB,
 		tacenvaDB,
 	)
@@ -79,8 +80,8 @@ func Run(dev bool) error {
 		)
 	}
 
-	if *approve {
-		return approveUserInteractive(
+	if *userStatus {
+		return changeUserStatusInteractive(
 			services,
 			cfg.SotID,
 		)
@@ -94,7 +95,7 @@ func Run(dev bool) error {
 
 func serve(
 	cfg *config.Config,
-	services *coreapp.Services,
+	services *tacpassapp.Services,
 ) error {
 	authHandler := auth.NewHandler(
 		services.Auth,
@@ -166,22 +167,17 @@ func serve(
 	)
 	if err != nil {
 		fmt.Printf(
-			"VPN discovery disabled: %v",
+			"VPN discovery disabled: %v\n",
 			err,
 		)
 	} else {
 		defer vpnServer.Shutdown()
 
 		fmt.Printf(
-			"VPN discovery service started: tun0:%d",
+			"VPN discovery service started: tun0:%d\n",
 			vpn.DiscoveryPort,
 		)
 	}
-
-	fmt.Printf(
-		"VPN discovery service started: tun0:%d\n",
-		vpn.DiscoveryPort,
-	)
 
 	return httpServer.Run(
 		cfg.Path(cfg.TLS.CertFile),
@@ -224,12 +220,11 @@ func OpenSQLite(
 }
 
 func initAdminPrivilege(
-	services *coreapp.Services,
+	services *tacpassapp.Services,
 	name string,
 	sotID string,
 ) error {
-	_, keypair, err := services.AccessControl.InitAdminPrivilege(
-		name,
+	keyPair, _, err := services.AccessControl.Internal.InitAccess(
 		sotID,
 	)
 	if err != nil {
@@ -238,73 +233,72 @@ func initAdminPrivilege(
 
 	fmt.Println(
 		"admin keypair created:",
-		keypair.PublicKey,
-		keypair.PrivateKey,
+		keyPair.PublicKey,
+		keyPair.PrivateKey,
 	)
 
 	return nil
 }
 
-func approveUserInteractive(
-	services *coreapp.Services,
+func changeUserStatusInteractive(
+	services *tacpassapp.Services,
 	sotID string,
 ) error {
-	permissions, err := services.AccessControl.ListInternal()
-	if err != nil {
-		return err
-	}
-
-	if len(permissions) == 0 {
-		fmt.Println("no permission found")
-		return nil
-	}
-
-	fmt.Println("permissions:")
-
-	for i, permission := range permissions {
-		fmt.Printf(
-			"[%d] %s (%s)\n",
-			i+1,
-			permission.Name,
-			permission.Privilege,
-		)
-	}
-
-	permissionIndex, err := readSelection(
-		"select permission: ",
-		len(permissions),
-	)
-	if err != nil {
-		return err
-	}
-
-	selectedPermission := permissions[permissionIndex]
-
-	permissionData, err := services.AccessControl.GetInternal(
-		selectedPermission.ID,
+	accessUnitList, err := services.AccessControl.Internal.AccessUnitList(
 		sotID,
 	)
 	if err != nil {
 		return err
 	}
 
-	users := permissionData.Users
+	if len(accessUnitList) == 0 {
+		fmt.Println("no access unit found")
+		return nil
+	}
 
-	if len(users) == 0 {
+	fmt.Println("access units:")
+
+	for i, accessUnit := range accessUnitList {
 		fmt.Printf(
-			"no users found for permission %q\n",
-			selectedPermission.Name,
+			"[%d] %s (%s)\n",
+			i+1,
+			accessUnit.Name,
+			accessUnit.Level,
 		)
+	}
 
+	accessUnitIndex, err := readSelection(
+		"select access unit: ",
+		len(accessUnitList),
+	)
+	if err != nil {
+		return err
+	}
+
+	selectedUnit := accessUnitList[accessUnitIndex]
+
+	userList, err := services.AccessControl.Internal.UserList(
+		sotID,
+		selectedUnit.ID,
+	)
+	if err != nil {
+		return err
+	}
+
+	if len(userList) == 0 {
+		fmt.Printf(
+			"no users found for access unit %q\n",
+			selectedUnit.Name,
+		)
 		return nil
 	}
 
 	fmt.Printf(
-		"\nusers for permission %q:\n",
-		selectedPermission.Name,
+		"\nusers for access unit %q:\n",
+		selectedUnit.Name,
 	)
 
-	for i, user := range users {
+	for i, user := range userList {
 		fmt.Printf(
 			"[%d] %s (%s) status=%s\n",
 			i+1,
@@ -315,24 +309,51 @@ func approveUserInteractive(
 	}
 
 	userIndex, err := readSelection(
-		"select user to approve: ",
-		len(users),
+		"select user: ",
+		len(userList),
 	)
 	if err != nil {
 		return err
 	}
 
-	selectedUser := users[userIndex]
+	selectedUser := userList[userIndex]
 
-	err = services.AccessControl.ApproveUserInternal(
-		selectedUser.ID,
+	fmt.Println("\nselect action:")
+	fmt.Println("[1] Approve")
+	fmt.Println("[2] Revoke")
+
+	actionIndex, err := readSelection(
+		"select action: ",
+		2,
 	)
 	if err != nil {
+		return err
+	}
+
+	var (
+		status  tacenvaentity.UserStatus
+		message string
+	)
+
+	switch actionIndex {
+	case 0:
+		status = tacenvaentity.UserStatusApproved
+		message = "approved"
+	case 1:
+		status = tacenvaentity.UserStatusRevoked
+		message = "revoked"
+	}
+
+	if err := services.AccessControl.Internal.SetUserStatus(
+		selectedUser.ID,
+		status,
+	); err != nil {
 		return err
 	}
 
 	fmt.Printf(
-		"\nuser approved: id=%s hostname=%s\n",
+		"\nuser %s: id=%s hostname=%s\n",
+		message,
 		selectedUser.ID,
 		selectedUser.Hostname,
 	)
@@ -361,7 +382,6 @@ func readSelection(
 				"invalid selection, choose 1-%d\n",
 				max,
 			)
-
 			continue
 		}
 

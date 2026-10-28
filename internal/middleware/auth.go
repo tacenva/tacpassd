@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/tacenva/tacpass-core/auth"
-	"github.com/tacenva/tacpass-core/entity"
+	"github.com/tacenva/tacenva-core/auth"
+	tacenvaentity "github.com/tacenva/tacenva-core/entity"
 )
 
 type contextKey string
@@ -113,17 +113,17 @@ func (m *Auth) Authenticate(
 
 func GetAuthUser(
 	r *http.Request,
-) *entity.User {
+) *tacenvaentity.User {
 	authUser, _ := r.Context().Value(
 		authUserKey,
-	).(*entity.User)
+	).(*tacenvaentity.User)
 
 	return authUser
 }
 
 func WithAuthUser(
 	r *http.Request,
-	authUser *entity.User,
+	authUser *tacenvaentity.User,
 ) *http.Request {
 	ctx := context.WithValue(
 		r.Context(),

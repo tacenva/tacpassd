@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/tacenva/tacpass-core/auth"
-	"github.com/tacenva/tacpass-core/config"
-	"github.com/tacenva/tacpass-core/contract"
-	"github.com/tacenva/tacpass-core/entity"
+	"github.com/tacenva/tacenva-core/auth"
+	"github.com/tacenva/tacenva-core/config"
+	tacenvacontract "github.com/tacenva/tacenva-core/contract"
+	tacenvaentity "github.com/tacenva/tacenva-core/entity"
 	"github.com/tacenva/tacpassd/internal/middleware"
 )
 
@@ -38,7 +38,7 @@ func (h *Handler) Enroll(
 
 	defer r.Body.Close()
 
-	var request contract.EnrollRequest
+	var request tacenvacontract.EnrollRequest
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
@@ -60,7 +60,7 @@ func (h *Handler) Enroll(
 	response, err := h.authService.Enroll(
 		&request,
 		h.sotID,
-		entity.UserStatusPending,
+		tacenvaentity.UserStatusPending,
 	)
 	if err != nil {
 		http.Error(
@@ -74,37 +74,37 @@ func (h *Handler) Enroll(
 	writeJSON(w, http.StatusAccepted, response)
 }
 
-func (h *Handler) CheckStatus(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+// func (h *Handler) CheckStatus(
+// 	w http.ResponseWriter,
+// 	r *http.Request,
+// ) {
+// 	if r.Method != http.MethodGet {
+// 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+// 		return
+// 	}
 
-	token := bearerToken(r)
-	if token == "" {
-		http.Error(
-			w,
-			"authorization token is required",
-			http.StatusUnauthorized,
-		)
-		return
-	}
+// 	token := bearerToken(r)
+// 	if token == "" {
+// 		http.Error(
+// 			w,
+// 			"authorization token is required",
+// 			http.StatusUnauthorized,
+// 		)
+// 		return
+// 	}
 
-	response, err := h.authService.CheckStatus(token, h.sotID)
-	if err != nil {
-		http.Error(
-			w,
-			"failed to check status",
-			http.StatusInternalServerError,
-		)
-		return
-	}
+// 	response, err := h.authService.CheckStatus(token, h.sotID)
+// 	if err != nil {
+// 		http.Error(
+// 			w,
+// 			"failed to check status",
+// 			http.StatusInternalServerError,
+// 		)
+// 		return
+// 	}
 
-	writeJSON(w, http.StatusOK, response)
-}
+// 	writeJSON(w, http.StatusOK, response)
+// }
 
 func (h *Handler) GroupData(
 	w http.ResponseWriter,
@@ -129,7 +129,7 @@ func (h *Handler) GroupData(
 		return
 	}
 
-	groupData, err := h.authService.GroupAssignment(authUser, h.sotID)
+	groupData, err := h.authService.GetAuthDataWithGroupList(authUser.Token, h.sotID)
 	if err != nil {
 		http.Error(
 			w,
@@ -142,16 +142,16 @@ func (h *Handler) GroupData(
 	writeJSON(w, http.StatusOK, groupData)
 }
 
-func bearerToken(r *http.Request) string {
-	const prefix = "Bearer "
+// func bearerToken(r *http.Request) string {
+// 	const prefix = "Bearer "
 
-	header := r.Header.Get("Authorization")
-	if !strings.HasPrefix(header, prefix) {
-		return ""
-	}
+// 	header := r.Header.Get("Authorization")
+// 	if !strings.HasPrefix(header, prefix) {
+// 		return ""
+// 	}
 
-	return strings.TrimSpace(strings.TrimPrefix(header, prefix))
-}
+// 	return strings.TrimSpace(strings.TrimPrefix(header, prefix))
+// }
 
 func writeJSON(
 	w http.ResponseWriter,

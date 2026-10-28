@@ -60,10 +60,10 @@ func (r *Router) registerAuthRoutes(
 		handler.Enroll,
 	)
 
-	r.mux.HandleFunc( // dont use middleware
-		"GET /auth/status",
-		handler.CheckStatus,
-	)
+	// r.mux.HandleFunc( // dont use middleware
+	// 	"GET /auth/status",
+	// 	handler.CheckStatus,
+	// )
 
 	r.handle(
 		"GET /auth/group",
@@ -75,30 +75,25 @@ func (r *Router) registerVaultRoutes(
 	handler *vault.Handler,
 ) {
 	// Vault
-	r.handle(
-		"QUERY /vault/public-keys",
-		handler.GetPublicKeys,
-	)
+	// r.handle(
+	// 	"GET /vault",
+	// 	handler.ListVault,
+	// )
 
-	r.handle(
-		"GET /vault",
-		handler.ListVault,
-	)
+	// r.handle(
+	// 	"GET /vault/changes/count",
+	// 	handler.VaultChangeCount,
+	// )
 
-	r.handle(
-		"GET /vault/changes/count",
-		handler.VaultChangeCount,
-	)
+	// r.handle(
+	// 	"GET /vault/changes",
+	// 	handler.GetVaultChangesAfter,
+	// )
 
-	r.handle(
-		"GET /vault/changes",
-		handler.GetVaultChangesAfter,
-	)
-
-	r.handle(
-		"POST /vault/sync",
-		handler.SyncVault,
-	)
+	// r.handle(
+	// 	"POST /vault/sync",
+	// 	handler.SyncVault,
+	// )
 
 	// Record
 	r.handle(
@@ -130,55 +125,60 @@ func (r *Router) registerVaultRoutes(
 func (r *Router) registerAccessControlRoutes(
 	handler *accesscontrol.Handler,
 ) {
-	r.handle(
-		"GET /access-control",
-		handler.List,
-	)
+	// r.handle(
+	// 	"GET /access-control",
+	// 	handler.List,
+	// )
+
+	// r.handle(
+	// 	"POST /access-control",
+	// 	handler.Create,
+	// )
+
+	// r.handle(
+	// 	"PUT /access-control/{id}",
+	// 	handler.Update,
+	// )
+
+	// r.handle(
+	// 	"DELETE /access-control/{id}",
+	// 	handler.DeletePermission,
+	// )
+
+	// r.handle(
+	// 	"PATCH /access-control/{id}/revoke",
+	// 	handler.SetRevoked,
+	// )
+
+	// // User
+	// r.handle(
+	// 	"GET /access-control/{id}/users",
+	// 	handler.UserList,
+	// )
+
+	// r.handle(
+	// 	"PATCH /access-control/users/{userId}/approval",
+	// 	handler.SetUserStatus,
+	// )
+
+	// // Permission groups
+	// r.handle(
+	// 	"GET /access-control/groups",
+	// 	handler.GroupList,
+	// )
+
+	// r.handle(
+	// 	"PUT /access-control/groups/{id}",
+	// 	handler.UpdateGroup,
+	// )
 
 	r.handle(
-		"POST /access-control",
-		handler.Create,
+		"QUERY /access-control/groups/public-keys",
+		handler.GetPublicKeys,
 	)
 
-	r.handle(
-		"PUT /access-control/{id}",
-		handler.Update,
-	)
-
-	r.handle(
-		"DELETE /access-control/{id}",
-		handler.DeletePermission,
-	)
-
-	r.handle(
-		"PATCH /access-control/{id}/revoke",
-		handler.SetRevoked,
-	)
-
-	// User
-	r.handle(
-		"GET /access-control/{id}/users",
-		handler.UserList,
-	)
-
-	r.handle(
-		"PATCH /access-control/users/{userId}/approval",
-		handler.SetUserStatus,
-	)
-
-	// Permission groups
-	r.handle(
-		"GET /access-control/groups",
-		handler.GroupList,
-	)
-
-	r.handle(
-		"PUT /access-control/groups/{id}",
-		handler.UpdateGroup,
-	)
-
-	r.handle(
-		"DELETE /access-control/groups/{id}",
-		handler.DeleteGroup,
-	)
+	// r.handle(
+	// 	"DELETE /access-control/groups/{id}",
+	// 	handler.DeleteGroup,
+	// )
 }
