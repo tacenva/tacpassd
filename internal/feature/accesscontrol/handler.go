@@ -3,11 +3,11 @@ package accesscontrol
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
 
 	"github.com/tacenva/tacenva-core/accesscontrol"
 	"github.com/tacenva/tacenva-core/config"
 	tacenvacontract "github.com/tacenva/tacenva-core/contract"
+	tacenvaentity "github.com/tacenva/tacenva-core/entity"
 	"github.com/tacenva/tacpassd/internal/middleware"
 )
 
@@ -24,13 +24,34 @@ func NewHandler(
 	}
 }
 
-func (h *Handler) GetPublicKeys(
+func requireMethod(
+	w http.ResponseWriter,
+	r *http.Request,
+	method string,
+) bool {
+	if r.Method == method {
+		return true
+	}
+
+	w.Header().Set("Allow", method)
+	http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	return false
+}
+
+// func getAuthUser(
+// 	w http.ResponseWriter,
+// 	r *http.Request,
+// ) interface{} {
+// 	// Gunakan helper ini hanya jika tipe return middleware.GetAuthUser
+// 	// cocok dengan interface{} dan dapat di-cast ke tipe yang diperlukan.
+// 	return nil
+// }
+
+func (h *Handler) CreateGroup(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	if r.Method != http.MethodPost {
-		w.Header().Set("Allow", http.MethodPost)
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
 
@@ -40,44 +61,405 @@ func (h *Handler) GetPublicKeys(
 		return
 	}
 
-	var req tacenvacontract.PublicKeyOfGroupsReq
+	var req tacenvacontract.AccessGroupSetupRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	groupIDs := make([]string, 0, len(req.GroupIDs))
-	seen := make(map[string]struct{}, len(req.GroupIDs))
-
-	for _, id := range req.GroupIDs {
-		id = strings.TrimSpace(id)
-		if id == "" {
-			continue
-		}
-		if _, exists := seen[id]; exists {
-			continue
-		}
-
-		seen[id] = struct{}{}
-		groupIDs = append(groupIDs, id)
-	}
-
-	if len(groupIDs) == 0 {
-		http.Error(w, "group_ids is required", http.StatusBadRequest)
+	if err := h.accesscontrolService.CreateGroup(authUser, &req); err != nil {
+		http.Error(w, "failed to create access group", http.StatusInternalServerError)
 		return
 	}
 
-	permissionList, err := h.accesscontrolService.PublicKeyOfGroups(
+	w.WriteHeader(http.StatusCreated)
+}
+
+func (h *Handler) UpdateGroup(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if !requireMethod(w, r, http.MethodPut) {
+		return
+	}
+
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	groupID := r.PathValue("id")
+	if groupID == "" {
+		http.Error(w, "missing group ID", http.StatusBadRequest)
+		return
+	}
+
+	var req tacenvaentity.AccessGroup
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	req.ID = groupID
+
+	if err := h.accesscontrolService.UpdateGroup(authUser, &req); err != nil {
+		http.Error(w, "failed to update access group", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) DeleteGroup(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if !requireMethod(w, r, http.MethodDelete) {
+		return
+	}
+
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	groupID := r.PathValue("id")
+	if groupID == "" {
+		http.Error(w, "missing group ID", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.accesscontrolService.DeleteGroup(authUser, groupID); err != nil {
+		http.Error(w, "failed to delete access group", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) GroupWithChildren(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
+
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	groupID := r.PathValue("id")
+	if groupID == "" {
+		http.Error(w, "missing group ID", http.StatusBadRequest)
+		return
+	}
+
+	accessGroupTree, err := h.accesscontrolService.GroupWithChildren(
 		authUser,
-		groupIDs,
+		groupID,
 	)
 	if err != nil {
-		http.Error(w, "failed to get public keys", http.StatusInternalServerError)
+		http.Error(w, "failed to get access group tree", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-
-	_ = json.NewEncoder(w).Encode(permissionList)
+	if err := json.NewEncoder(w).Encode(accessGroupTree); err != nil {
+		return
+	}
 }
+
+func (h *Handler) CreateUnit(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if !requireMethod(w, r, http.MethodPost) {
+		return
+	}
+
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req tacenvacontract.AccessUnitSetupReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.accesscontrolService.CreateUnit(
+		authUser.AccessUnit.SotID,
+		&req,
+	); err != nil {
+		http.Error(w, "failed to create access unit", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+}
+
+func (h *Handler) UpdateUnit(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if !requireMethod(w, r, http.MethodPut) {
+		return
+	}
+
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	unitID := r.PathValue("id")
+	if unitID == "" {
+		http.Error(w, "missing unit ID", http.StatusBadRequest)
+		return
+	}
+
+	var req tacenvaentity.AccessUnit
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	req.ID = unitID
+
+	if err := h.accesscontrolService.UpdateUnit(
+		authUser.AccessUnit.SotID,
+		&req,
+	); err != nil {
+		http.Error(w, "failed to update access unit", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) DeleteUnit(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if !requireMethod(w, r, http.MethodDelete) {
+		return
+	}
+
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	unitID := r.PathValue("id")
+	if unitID == "" {
+		http.Error(w, "missing unit ID", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.accesscontrolService.DeleteUnit(
+		authUser.AccessUnit.SotID,
+		unitID,
+	); err != nil {
+		http.Error(w, "failed to delete access unit", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) SetRevokeUnit(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if !requireMethod(w, r, http.MethodPatch) {
+		return
+	}
+
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	unitID := r.PathValue("id")
+	if unitID == "" {
+		http.Error(w, "missing unit ID", http.StatusBadRequest)
+		return
+	}
+
+	var req tacenvacontract.RevokeStatusReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.accesscontrolService.SetRevokeUnit(
+		authUser.AccessUnit.SotID,
+		unitID,
+		req.IsRevoked,
+	); err != nil {
+		http.Error(w, "failed to update access unit revoke status", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) UnitList(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
+
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	groupID := r.PathValue("id")
+	if groupID == "" {
+		http.Error(w, "missing group ID", http.StatusBadRequest)
+		return
+	}
+
+	unitList, err := h.accesscontrolService.UnitList(
+		authUser.AccessUnit.SotID,
+		groupID,
+	)
+	if err != nil {
+		http.Error(w, "failed to list access units", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(unitList); err != nil {
+		return
+	}
+}
+
+func (h *Handler) SetApprovalUser(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if !requireMethod(w, r, http.MethodPatch) {
+		return
+	}
+
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	userID := r.PathValue("id")
+	if userID == "" {
+		http.Error(w, "missing user ID", http.StatusBadRequest)
+		return
+	}
+
+	var req tacenvacontract.RevokeStatusReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.accesscontrolService.SetApprovalUser(userID, req.IsRevoked); err != nil {
+		http.Error(w, "failed to approve user", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) DeleteUser(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if !requireMethod(w, r, http.MethodDelete) {
+		return
+	}
+
+	authUser := middleware.GetAuthUser(r)
+	if authUser == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	userID := r.PathValue("id")
+	if userID == "" {
+		http.Error(w, "missing user ID", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.accesscontrolService.DeleteUser(userID); err != nil {
+		http.Error(w, "failed to delete user", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// func (h *Handler) GetPublicKeys(
+// 	w http.ResponseWriter,
+// 	r *http.Request,
+// ) {
+// 	if !requireMethod(w, r, http.MethodPost) {
+// 		return
+// 	}
+
+// 	authUser := middleware.GetAuthUser(r)
+// 	if authUser == nil {
+// 		http.Error(w, "unauthorized", http.StatusUnauthorized)
+// 		return
+// 	}
+
+// 	var req tacenvacontract.PublicKeyOfGroupsReq
+// 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+// 		http.Error(w, "invalid request body", http.StatusBadRequest)
+// 		return
+// 	}
+
+// 	groupIDs := make([]string, 0, len(req.GroupIDs))
+// 	seen := make(map[string]struct{}, len(req.GroupIDs))
+
+// 	for _, id := range req.GroupIDs {
+// 		id = strings.TrimSpace(id)
+// 		if id == "" {
+// 			continue
+// 		}
+// 		if _, exists := seen[id]; exists {
+// 			continue
+// 		}
+
+// 		seen[id] = struct{}{}
+// 		groupIDs = append(groupIDs, id)
+// 	}
+
+// 	if len(groupIDs) == 0 {
+// 		http.Error(w, "group_ids is required", http.StatusBadRequest)
+// 		return
+// 	}
+
+// 	publicKeyOfGroups, err := h.accesscontrolService.PublicKeyOfGroups(
+// 		authUser,
+// 		groupIDs,
+// 	)
+// 	if err != nil {
+// 		http.Error(w, "failed to get public keys", http.StatusInternalServerError)
+// 		return
+// 	}
+
+// 	w.Header().Set("Content-Type", "application/json")
+// 	if err := json.NewEncoder(w).Encode(publicKeyOfGroups); err != nil {
+// 		return
+// 	}
+// }

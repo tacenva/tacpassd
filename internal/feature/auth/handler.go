@@ -74,39 +74,7 @@ func (h *Handler) Enroll(
 	writeJSON(w, http.StatusAccepted, response)
 }
 
-// func (h *Handler) CheckStatus(
-// 	w http.ResponseWriter,
-// 	r *http.Request,
-// ) {
-// 	if r.Method != http.MethodGet {
-// 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-// 		return
-// 	}
-
-// 	token := bearerToken(r)
-// 	if token == "" {
-// 		http.Error(
-// 			w,
-// 			"authorization token is required",
-// 			http.StatusUnauthorized,
-// 		)
-// 		return
-// 	}
-
-// 	response, err := h.authService.CheckStatus(token, h.sotID)
-// 	if err != nil {
-// 		http.Error(
-// 			w,
-// 			"failed to check status",
-// 			http.StatusInternalServerError,
-// 		)
-// 		return
-// 	}
-
-// 	writeJSON(w, http.StatusOK, response)
-// }
-
-func (h *Handler) GroupData(
+func (h *Handler) Data(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
@@ -141,17 +109,6 @@ func (h *Handler) GroupData(
 
 	writeJSON(w, http.StatusOK, groupData)
 }
-
-// func bearerToken(r *http.Request) string {
-// 	const prefix = "Bearer "
-
-// 	header := r.Header.Get("Authorization")
-// 	if !strings.HasPrefix(header, prefix) {
-// 		return ""
-// 	}
-
-// 	return strings.TrimSpace(strings.TrimPrefix(header, prefix))
-// }
 
 func writeJSON(
 	w http.ResponseWriter,

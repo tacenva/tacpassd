@@ -70,12 +70,12 @@ func Run(dev bool) error {
 	services := tacpassapp.NewServices(
 		sqliteDB,
 		tacenvaDB,
+		cfg.Server.Hostname,
 	)
 
 	if *initAdmin != "" {
 		return initAdminPrivilege(
 			services,
-			*initAdmin,
 			cfg.SotID,
 		)
 	}
@@ -221,7 +221,6 @@ func OpenSQLite(
 
 func initAdminPrivilege(
 	services *tacpassapp.Services,
-	name string,
 	sotID string,
 ) error {
 	keyPair, _, err := services.AccessControl.Internal.InitAccess(

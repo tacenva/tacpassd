@@ -60,14 +60,9 @@ func (r *Router) registerAuthRoutes(
 		handler.Enroll,
 	)
 
-	// r.mux.HandleFunc( // dont use middleware
-	// 	"GET /auth/status",
-	// 	handler.CheckStatus,
-	// )
-
 	r.handle(
-		"GET /auth/group",
-		handler.GroupData,
+		"GET /auth/",
+		handler.Data,
 	)
 }
 
@@ -125,60 +120,67 @@ func (r *Router) registerVaultRoutes(
 func (r *Router) registerAccessControlRoutes(
 	handler *accesscontrol.Handler,
 ) {
-	// r.handle(
-	// 	"GET /access-control",
-	// 	handler.List,
-	// )
-
-	// r.handle(
-	// 	"POST /access-control",
-	// 	handler.Create,
-	// )
-
-	// r.handle(
-	// 	"PUT /access-control/{id}",
-	// 	handler.Update,
-	// )
-
-	// r.handle(
-	// 	"DELETE /access-control/{id}",
-	// 	handler.DeletePermission,
-	// )
-
-	// r.handle(
-	// 	"PATCH /access-control/{id}/revoke",
-	// 	handler.SetRevoked,
-	// )
-
-	// // User
-	// r.handle(
-	// 	"GET /access-control/{id}/users",
-	// 	handler.UserList,
-	// )
-
-	// r.handle(
-	// 	"PATCH /access-control/users/{userId}/approval",
-	// 	handler.SetUserStatus,
-	// )
-
-	// // Permission groups
-	// r.handle(
-	// 	"GET /access-control/groups",
-	// 	handler.GroupList,
-	// )
-
-	// r.handle(
-	// 	"PUT /access-control/groups/{id}",
-	// 	handler.UpdateGroup,
-	// )
-
+	// Access Group
 	r.handle(
-		"QUERY /access-control/groups/public-keys",
-		handler.GetPublicKeys,
+		"POST /access-control/groups",
+		handler.CreateGroup,
 	)
 
+	r.handle(
+		"PUT /access-control/groups/{id}",
+		handler.UpdateGroup,
+	)
+
+	r.handle(
+		"DELETE /access-control/groups/{id}",
+		handler.DeleteGroup,
+	)
+
+	r.handle(
+		"GET /access-control/groups/{id}/tree",
+		handler.GroupWithChildren,
+	)
+
+	// Access Unit
+	r.handle(
+		"POST /access-control/groups/{id}/units",
+		handler.CreateUnit,
+	)
+
+	r.handle(
+		"GET /access-control/groups/{id}/units",
+		handler.UnitList,
+	)
+
+	r.handle(
+		"PUT /access-control/units/{id}",
+		handler.UpdateUnit,
+	)
+
+	r.handle(
+		"DELETE /access-control/units/{id}",
+		handler.DeleteUnit,
+	)
+
+	r.handle(
+		"PATCH /access-control/units/{id}/revoke",
+		handler.SetRevokeUnit,
+	)
+
+	// // Public Keys
 	// r.handle(
-	// 	"DELETE /access-control/groups/{id}",
-	// 	handler.DeleteGroup,
+	// 	"POST /access-control/groups/public-keys",
+	// 	handler.GetPublicKeys,
 	// )
+
+	// User
+	r.handle(
+		"PATCH /access-control/users/{id}/approve",
+		handler.SetApprovalUser,
+	)
+
+	r.handle(
+		"DELETE /access-control/users/{id}",
+		handler.DeleteUser,
+	)
 }
