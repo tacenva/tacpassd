@@ -38,11 +38,11 @@ func requireMethod(
 	return false
 }
 
-// func getAuthUser(
+// func getauthorizedUser(
 // 	w http.ResponseWriter,
 // 	r *http.Request,
 // ) interface{} {
-// 	// Gunakan helper ini hanya jika tipe return middleware.GetAuthUser
+// 	// Gunakan helper ini hanya jika tipe return middleware.GetauthorizedUser
 // 	// cocok dengan interface{} dan dapat di-cast ke tipe yang diperlukan.
 // 	return nil
 // }
@@ -55,8 +55,8 @@ func (h *Handler) CreateGroup(
 		return
 	}
 
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
+	authorizedUser := middleware.GetauthorizedUser(r)
+	if authorizedUser == nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -67,7 +67,7 @@ func (h *Handler) CreateGroup(
 		return
 	}
 
-	if err := h.accesscontrolService.CreateGroup(authUser, &req); err != nil {
+	if err := h.accesscontrolService.CreateGroup(authorizedUser, &req); err != nil {
 		http.Error(w, "failed to create access group", http.StatusInternalServerError)
 		return
 	}
@@ -83,8 +83,8 @@ func (h *Handler) UpdateGroup(
 		return
 	}
 
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
+	authorizedUser := middleware.GetauthorizedUser(r)
+	if authorizedUser == nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -102,7 +102,7 @@ func (h *Handler) UpdateGroup(
 	}
 	req.ID = groupID
 
-	if err := h.accesscontrolService.UpdateGroup(authUser, &req); err != nil {
+	if err := h.accesscontrolService.UpdateGroup(authorizedUser, &req); err != nil {
 		http.Error(w, "failed to update access group", http.StatusInternalServerError)
 		return
 	}
@@ -118,8 +118,8 @@ func (h *Handler) DeleteGroup(
 		return
 	}
 
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
+	authorizedUser := middleware.GetauthorizedUser(r)
+	if authorizedUser == nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -130,7 +130,7 @@ func (h *Handler) DeleteGroup(
 		return
 	}
 
-	if err := h.accesscontrolService.DeleteGroup(authUser, groupID); err != nil {
+	if err := h.accesscontrolService.DeleteGroup(authorizedUser, groupID); err != nil {
 		http.Error(w, "failed to delete access group", http.StatusInternalServerError)
 		return
 	}
@@ -146,20 +146,16 @@ func (h *Handler) GroupWithChildren(
 		return
 	}
 
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
+	authorizedUser := middleware.GetauthorizedUser(r)
+	if authorizedUser == nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	groupID := r.PathValue("id")
-	if groupID == "" {
-		http.Error(w, "missing group ID", http.StatusBadRequest)
-		return
-	}
 
 	accessGroupTree, err := h.accesscontrolService.GroupWithChildren(
-		authUser,
+		authorizedUser,
 		groupID,
 	)
 	if err != nil {
@@ -181,8 +177,8 @@ func (h *Handler) CreateUnit(
 		return
 	}
 
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
+	authorizedUser := middleware.GetauthorizedUser(r)
+	if authorizedUser == nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -194,7 +190,7 @@ func (h *Handler) CreateUnit(
 	}
 
 	if err := h.accesscontrolService.CreateUnit(
-		authUser.AccessUnit.SotID,
+		authorizedUser,
 		&req,
 	); err != nil {
 		http.Error(w, "failed to create access unit", http.StatusInternalServerError)
@@ -212,8 +208,8 @@ func (h *Handler) UpdateUnit(
 		return
 	}
 
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
+	authorizedUser := middleware.GetauthorizedUser(r)
+	if authorizedUser == nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -232,7 +228,7 @@ func (h *Handler) UpdateUnit(
 	req.ID = unitID
 
 	if err := h.accesscontrolService.UpdateUnit(
-		authUser.AccessUnit.SotID,
+		authorizedUser,
 		&req,
 	); err != nil {
 		http.Error(w, "failed to update access unit", http.StatusInternalServerError)
@@ -250,8 +246,8 @@ func (h *Handler) DeleteUnit(
 		return
 	}
 
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
+	authorizedUser := middleware.GetauthorizedUser(r)
+	if authorizedUser == nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -263,7 +259,7 @@ func (h *Handler) DeleteUnit(
 	}
 
 	if err := h.accesscontrolService.DeleteUnit(
-		authUser.AccessUnit.SotID,
+		authorizedUser,
 		unitID,
 	); err != nil {
 		http.Error(w, "failed to delete access unit", http.StatusInternalServerError)
@@ -281,8 +277,8 @@ func (h *Handler) SetRevokeUnit(
 		return
 	}
 
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
+	authorizedUser := middleware.GetauthorizedUser(r)
+	if authorizedUser == nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -300,7 +296,7 @@ func (h *Handler) SetRevokeUnit(
 	}
 
 	if err := h.accesscontrolService.SetRevokeUnit(
-		authUser.AccessUnit.SotID,
+		authorizedUser,
 		unitID,
 		req.IsRevoked,
 	); err != nil {
@@ -319,8 +315,8 @@ func (h *Handler) UnitList(
 		return
 	}
 
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
+	authorizedUser := middleware.GetauthorizedUser(r)
+	if authorizedUser == nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -332,7 +328,7 @@ func (h *Handler) UnitList(
 	}
 
 	unitList, err := h.accesscontrolService.UnitList(
-		authUser.AccessUnit.SotID,
+		authorizedUser,
 		groupID,
 	)
 	if err != nil {
@@ -354,8 +350,8 @@ func (h *Handler) SetApprovalUser(
 		return
 	}
 
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
+	authorizedUser := middleware.GetauthorizedUser(r)
+	if authorizedUser == nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -372,7 +368,7 @@ func (h *Handler) SetApprovalUser(
 		return
 	}
 
-	if err := h.accesscontrolService.SetApprovalUser(userID, req.IsRevoked); err != nil {
+	if err := h.accesscontrolService.SetApprovalUser(authorizedUser, userID, req.IsRevoked); err != nil {
 		http.Error(w, "failed to approve user", http.StatusInternalServerError)
 		return
 	}
@@ -388,8 +384,8 @@ func (h *Handler) DeleteUser(
 		return
 	}
 
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
+	authorizedUser := middleware.GetauthorizedUser(r)
+	if authorizedUser == nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -400,7 +396,7 @@ func (h *Handler) DeleteUser(
 		return
 	}
 
-	if err := h.accesscontrolService.DeleteUser(userID); err != nil {
+	if err := h.accesscontrolService.DeleteUser(authorizedUser, userID); err != nil {
 		http.Error(w, "failed to delete user", http.StatusInternalServerError)
 		return
 	}
@@ -416,8 +412,8 @@ func (h *Handler) DeleteUser(
 // 		return
 // 	}
 
-// 	authUser := middleware.GetAuthUser(r)
-// 	if authUser == nil {
+// 	authorizedUser := middleware.GetauthorizedUser(r)
+// 	if authorizedUser == nil {
 // 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 // 		return
 // 	}
@@ -450,7 +446,7 @@ func (h *Handler) DeleteUser(
 // 	}
 
 // 	publicKeyOfGroups, err := h.accesscontrolService.PublicKeyOfGroups(
-// 		authUser,
+// 		authorizedUser,
 // 		groupIDs,
 // 	)
 // 	if err != nil {

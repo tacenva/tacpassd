@@ -48,8 +48,8 @@ func NewHandler(
 // 		return
 // 	}
 
-// 	authUser := middleware.GetAuthUser(r)
-// 	if authUser == nil {
+// 	authorizedUser := middleware.GetauthorizedUser(r)
+// 	if authorizedUser == nil {
 // 		http.Error(
 // 			w,
 // 			"unauthorized",
@@ -88,7 +88,7 @@ func NewHandler(
 // 	}
 
 // 	permissionList, err := h.vault.GetPublicKeysByGroupIDs(
-// 		authUser,
+// 		authorizedUser,
 // 		groupIDs,
 // 		h.sotID,
 // 	)
@@ -143,8 +143,8 @@ func (h *Handler) ParseSyncQuery(
 // 		return
 // 	}
 
-// 	authUser := middleware.GetAuthUser(r)
-// 	if authUser == nil {
+// 	authorizedUser := middleware.GetauthorizedUser(r)
+// 	if authorizedUser == nil {
 // 		http.Error(
 // 			w,
 // 			"unauthorized",
@@ -178,9 +178,9 @@ func (h *Handler) ParseSyncQuery(
 
 // 	successList, err := h.vault.SyncOnSot(
 // 		h.sotID,
-// 		authUser.PermissionID,
-// 		authUser.Permission.GroupID,
-// 		authUser.Hostname,
+// 		authorizedUser.PermissionID,
+// 		authorizedUser.Permission.GroupID,
+// 		authorizedUser.Hostname,
 // 		startChangeID,
 // 		limit,
 // 		&pendingChange,
@@ -208,8 +208,8 @@ func (h *Handler) GetVaultSyncLatestChangeID(
 		return
 	}
 
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
+	authorizedUser := middleware.GetauthorizedUser(r)
+	if authorizedUser == nil {
 		http.Error(
 			w,
 			"unauthorized",
@@ -255,8 +255,8 @@ func (h *Handler) VaultChangeCount(
 		return
 	}
 
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
+	authorizedUser := middleware.GetauthorizedUser(r)
+	if authorizedUser == nil {
 		http.Error(
 			w,
 			"unauthorized",
@@ -303,8 +303,8 @@ func (h *Handler) VaultChangeCount(
 // 		return
 // 	}
 
-// 	authUser := middleware.GetAuthUser(r)
-// 	if authUser == nil {
+// 	authorizedUser := middleware.GetauthorizedUser(r)
+// 	if authorizedUser == nil {
 // 		http.Error(
 // 			w,
 // 			"unauthorized",
@@ -327,7 +327,7 @@ func (h *Handler) VaultChangeCount(
 
 // 	changes, err := h.vault.GetChangesAfterOnSot(
 // 		h.sotID,
-// 		authUser.PermissionID,
+// 		authorizedUser.PermissionID,
 // 		startChangeID,
 // 		limit,
 // 	)
@@ -359,8 +359,8 @@ func (h *Handler) VaultChangeCount(
 // 		return
 // 	}
 
-// 	authUser := middleware.GetAuthUser(r)
-// 	if authUser == nil {
+// 	authorizedUser := middleware.GetauthorizedUser(r)
+// 	if authorizedUser == nil {
 // 		http.Error(
 // 			w,
 // 			"unauthorized",
@@ -370,7 +370,7 @@ func (h *Handler) VaultChangeCount(
 // 	}
 
 // 	vaultAccessList, err := h.vault.VaultList(
-// 		authUser,
+// 		authorizedUser,
 // 	)
 // 	if err != nil {
 // 		h.handleServiceError(w, err)
@@ -400,8 +400,8 @@ func (h *Handler) GetRecordSyncLatestChangeID(
 		return
 	}
 
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
+	authorizedUser := middleware.GetauthorizedUser(r)
+	if authorizedUser == nil {
 		http.Error(
 			w,
 			"unauthorized",
@@ -458,8 +458,8 @@ func (h *Handler) GetRecordBlob(
 		return
 	}
 
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
+	authorizedUser := middleware.GetauthorizedUser(r)
+	if authorizedUser == nil {
 		http.Error(
 			w,
 			"unauthorized",
@@ -479,7 +479,7 @@ func (h *Handler) GetRecordBlob(
 	}
 
 	data, err := h.vaultRecordService.Remote.GetBlob(
-		authUser,
+		authorizedUser,
 		vaultID,
 		h.sotID,
 	)
@@ -511,8 +511,8 @@ func (h *Handler) StoreRecordBlob(
 		return
 	}
 
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
+	authorizedUser := middleware.GetauthorizedUser(r)
+	if authorizedUser == nil {
 		http.Error(
 			w,
 			"unauthorized",
@@ -552,7 +552,7 @@ func (h *Handler) StoreRecordBlob(
 	}
 
 	err = h.vaultRecordService.Remote.StoreBlob(
-		authUser,
+		authorizedUser,
 		vaultID,
 		h.sotID,
 		data,
@@ -578,8 +578,8 @@ func (h *Handler) RecordChangeCount(
 		return
 	}
 
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
+	authorizedUser := middleware.GetauthorizedUser(r)
+	if authorizedUser == nil {
 		http.Error(
 			w,
 			"unauthorized",
@@ -603,7 +603,7 @@ func (h *Handler) RecordChangeCount(
 	)
 
 	count, err := h.vaultRecordService.GetChangeCount(
-		// authUser,
+		// authorizedUser,
 		h.sotID,
 		vaultID,
 		startChangeID,
@@ -640,8 +640,8 @@ func (h *Handler) GetRecordChangesAfter(
 		return
 	}
 
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
+	authorizedUser := middleware.GetauthorizedUser(r)
+	if authorizedUser == nil {
 		http.Error(
 			w,
 			"unauthorized",
@@ -707,8 +707,8 @@ func (h *Handler) SyncRecord(
 		return
 	}
 
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
+	authorizedUser := middleware.GetauthorizedUser(r)
+	if authorizedUser == nil {
 		http.Error(
 			w,
 			"unauthorized",
@@ -756,7 +756,7 @@ func (h *Handler) SyncRecord(
 	}
 
 	err = h.vaultRecordService.SyncOnSot(
-		authUser,
+		authorizedUser,
 		h.vaultDir,
 		h.sotID,
 		vaultID,

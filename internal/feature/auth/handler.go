@@ -87,8 +87,8 @@ func (h *Handler) Data(
 		return
 	}
 
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
+	authorizedUser := middleware.GetauthorizedUser(r)
+	if authorizedUser == nil {
 		http.Error(
 			w,
 			"unauthorized",
@@ -97,7 +97,7 @@ func (h *Handler) Data(
 		return
 	}
 
-	groupData, err := h.authService.GetAuthDataWithGroupList(authUser.Token, h.sotID)
+	groupData, err := h.authService.GetAuthDataWithGroupList(authorizedUser, h.sotID)
 	if err != nil {
 		http.Error(
 			w,
