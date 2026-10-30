@@ -38,15 +38,6 @@ func requireMethod(
 	return false
 }
 
-// func getauthorizedUser(
-// 	w http.ResponseWriter,
-// 	r *http.Request,
-// ) interface{} {
-// 	// Gunakan helper ini hanya jika tipe return middleware.GetauthorizedUser
-// 	// cocok dengan interface{} dan dapat di-cast ke tipe yang diperlukan.
-// 	return nil
-// }
-
 func (h *Handler) CreateGroup(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -63,12 +54,15 @@ func (h *Handler) CreateGroup(
 
 	var req tacenvacontract.AccessGroupSetupRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	if err := h.accesscontrolService.CreateGroup(authorizedUser, &req); err != nil {
-		http.Error(w, "failed to create access group", http.StatusInternalServerError)
+	if err := h.accesscontrolService.CreateGroup(
+		authorizedUser,
+		&req,
+	); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -97,13 +91,17 @@ func (h *Handler) UpdateGroup(
 
 	var req tacenvaentity.AccessGroup
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
 	req.ID = groupID
 
-	if err := h.accesscontrolService.UpdateGroup(authorizedUser, &req); err != nil {
-		http.Error(w, "failed to update access group", http.StatusInternalServerError)
+	if err := h.accesscontrolService.UpdateGroup(
+		authorizedUser,
+		&req,
+	); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -130,8 +128,11 @@ func (h *Handler) DeleteGroup(
 		return
 	}
 
-	if err := h.accesscontrolService.DeleteGroup(authorizedUser, groupID); err != nil {
-		http.Error(w, "failed to delete access group", http.StatusInternalServerError)
+	if err := h.accesscontrolService.DeleteGroup(
+		authorizedUser,
+		groupID,
+	); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -159,11 +160,12 @@ func (h *Handler) GroupWithChildren(
 		groupID,
 	)
 	if err != nil {
-		http.Error(w, "failed to get access group tree", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+
 	if err := json.NewEncoder(w).Encode(accessGroupTree); err != nil {
 		return
 	}
@@ -185,7 +187,7 @@ func (h *Handler) CreateUnit(
 
 	var req tacenvacontract.AccessUnitSetupReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -193,7 +195,7 @@ func (h *Handler) CreateUnit(
 		authorizedUser,
 		&req,
 	); err != nil {
-		http.Error(w, "failed to create access unit", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -222,16 +224,17 @@ func (h *Handler) UpdateUnit(
 
 	var req tacenvaentity.AccessUnit
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
 	req.ID = unitID
 
 	if err := h.accesscontrolService.UpdateUnit(
 		authorizedUser,
 		&req,
 	); err != nil {
-		http.Error(w, "failed to update access unit", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -262,7 +265,7 @@ func (h *Handler) DeleteUnit(
 		authorizedUser,
 		unitID,
 	); err != nil {
-		http.Error(w, "failed to delete access unit", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -291,7 +294,7 @@ func (h *Handler) SetRevokeUnit(
 
 	var req tacenvacontract.RevokeStatusReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -300,7 +303,7 @@ func (h *Handler) SetRevokeUnit(
 		unitID,
 		req.IsRevoked,
 	); err != nil {
-		http.Error(w, "failed to update access unit revoke status", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -332,11 +335,12 @@ func (h *Handler) UnitList(
 		groupID,
 	)
 	if err != nil {
-		http.Error(w, "failed to list access units", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+
 	if err := json.NewEncoder(w).Encode(unitList); err != nil {
 		return
 	}
@@ -364,12 +368,16 @@ func (h *Handler) SetApprovalUser(
 
 	var req tacenvacontract.RevokeStatusReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	if err := h.accesscontrolService.SetApprovalUser(authorizedUser, userID, req.IsRevoked); err != nil {
-		http.Error(w, "failed to approve user", http.StatusInternalServerError)
+	if err := h.accesscontrolService.SetApprovalUser(
+		authorizedUser,
+		userID,
+		req.IsRevoked,
+	); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -396,66 +404,13 @@ func (h *Handler) DeleteUser(
 		return
 	}
 
-	if err := h.accesscontrolService.DeleteUser(authorizedUser, userID); err != nil {
-		http.Error(w, "failed to delete user", http.StatusInternalServerError)
+	if err := h.accesscontrolService.DeleteUser(
+		authorizedUser,
+		userID,
+	); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.WriteHeader(http.StatusNoContent)
 }
-
-// func (h *Handler) GetPublicKeys(
-// 	w http.ResponseWriter,
-// 	r *http.Request,
-// ) {
-// 	if !requireMethod(w, r, http.MethodPost) {
-// 		return
-// 	}
-
-// 	authorizedUser := middleware.GetauthorizedUser(r)
-// 	if authorizedUser == nil {
-// 		http.Error(w, "unauthorized", http.StatusUnauthorized)
-// 		return
-// 	}
-
-// 	var req tacenvacontract.PublicKeyOfGroupsReq
-// 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-// 		http.Error(w, "invalid request body", http.StatusBadRequest)
-// 		return
-// 	}
-
-// 	groupIDs := make([]string, 0, len(req.GroupIDs))
-// 	seen := make(map[string]struct{}, len(req.GroupIDs))
-
-// 	for _, id := range req.GroupIDs {
-// 		id = strings.TrimSpace(id)
-// 		if id == "" {
-// 			continue
-// 		}
-// 		if _, exists := seen[id]; exists {
-// 			continue
-// 		}
-
-// 		seen[id] = struct{}{}
-// 		groupIDs = append(groupIDs, id)
-// 	}
-
-// 	if len(groupIDs) == 0 {
-// 		http.Error(w, "group_ids is required", http.StatusBadRequest)
-// 		return
-// 	}
-
-// 	publicKeyOfGroups, err := h.accesscontrolService.PublicKeyOfGroups(
-// 		authorizedUser,
-// 		groupIDs,
-// 	)
-// 	if err != nil {
-// 		http.Error(w, "failed to get public keys", http.StatusInternalServerError)
-// 		return
-// 	}
-
-// 	w.Header().Set("Content-Type", "application/json")
-// 	if err := json.NewEncoder(w).Encode(publicKeyOfGroups); err != nil {
-// 		return
-// 	}
-// }

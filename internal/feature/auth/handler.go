@@ -78,7 +78,7 @@ func (h *Handler) Data(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	if r.Method != http.MethodGet {
+	if r.Method != "QUERY" {
 		http.Error(
 			w,
 			"method not allowed",
@@ -97,13 +97,20 @@ func (h *Handler) Data(
 		return
 	}
 
-	groupData, err := h.authService.GetAuthDataWithGroupList(authorizedUser, h.sotID)
+	var req tacenvacontract.AuthDataReq
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	groupData, err := h.authService.GetAuthDataWithGroupList(
+		authorizedUser,
+		h.sotID,
+		req.AccessGroupLastChangeID,
+	)
 	if err != nil {
-		http.Error(
-			w,
-			"failed to get group data",
-			http.StatusInternalServerError,
-		)
+		http.Error(w, "failed to get group data", http.StatusInternalServerError)
 		return
 	}
 

@@ -61,7 +61,7 @@ func (r *Router) registerAuthRoutes(
 	)
 
 	r.handle(
-		"GET /auth/",
+		"QUERY /auth/",
 		handler.Data,
 	)
 }
