@@ -73,6 +73,15 @@ func Run(dev bool) error {
 		cfg.Server.Hostname,
 	)
 
+	services.Vault.Sot.SetConfig(
+		cfg.VaultDir(),
+	)
+
+	services.VaultRecord.Remote.SetConfig(
+		cfg.VaultDir(),
+		cfg.SotID,
+	)
+
 	if *initAdmin != "" {
 		return initAdminPrivilege(
 			services,

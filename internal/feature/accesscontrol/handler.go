@@ -414,3 +414,40 @@ func (h *Handler) DeleteUser(
 
 	w.WriteHeader(http.StatusNoContent)
 }
+
+func (h *Handler) GetPublicKeys(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if !requireMethod(w, r, "QUERY") {
+		return
+	}
+
+	authorizedUser := middleware.GetauthorizedUser(r)
+	if authorizedUser == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req tacenvacontract.PublicKeyOfGroupsReq
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	publicKeys, err := h.accesscontrolService.PublicKeyOfGroups(
+		authorizedUser,
+		req.GroupIDs,
+	)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	if err := json.NewEncoder(w).Encode(publicKeys); err != nil {
+		return
+	}
+}

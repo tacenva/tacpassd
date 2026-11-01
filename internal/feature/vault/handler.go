@@ -11,6 +11,7 @@ import (
 
 	"github.com/tacenva/tacenva-core/config"
 	"github.com/tacenva/tacpass-core/contract"
+	tacpasscontract "github.com/tacenva/tacpass-core/contract"
 	"github.com/tacenva/tacpass-core/vault"
 	"github.com/tacenva/tacpass-core/vaultrecord"
 	"github.com/tacenva/tacpassd/internal/middleware"
@@ -35,78 +36,6 @@ func NewHandler(
 	}
 }
 
-// func (h *Handler) GetPublicKeys(
-// 	w http.ResponseWriter,
-// 	r *http.Request,
-// ) {
-// 	if r.Method != "QUERY" {
-// 		http.Error(
-// 			w,
-// 			"method not allowed",
-// 			http.StatusMethodNotAllowed,
-// 		)
-// 		return
-// 	}
-
-// 	authorizedUser := middleware.GetauthorizedUser(r)
-// 	if authorizedUser == nil {
-// 		http.Error(
-// 			w,
-// 			"unauthorized",
-// 			http.StatusUnauthorized,
-// 		)
-// 		return
-// 	}
-
-// 	var req tacenvacontract.PermissionGroupReq
-
-// 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-// 		http.Error(
-// 			w,
-// 			"invalid request body",
-// 			http.StatusBadRequest,
-// 		)
-// 		return
-// 	}
-
-// 	groupIDs := make([]string, 0, len(req.GroupIDs))
-
-// 	for _, id := range req.GroupIDs {
-// 		id = strings.TrimSpace(id)
-// 		if id != "" {
-// 			groupIDs = append(groupIDs, id)
-// 		}
-// 	}
-
-// 	if len(groupIDs) == 0 {
-// 		http.Error(
-// 			w,
-// 			"group_ids is required",
-// 			http.StatusBadRequest,
-// 		)
-// 		return
-// 	}
-
-// 	permissionList, err := h.vault.GetPublicKeysByGroupIDs(
-// 		authorizedUser,
-// 		groupIDs,
-// 		h.sotID,
-// 	)
-// 	if err != nil {
-// 		h.handleServiceError(w, err)
-// 		return
-// 	}
-
-// 	w.Header().Set(
-// 		"Content-Type",
-// 		"application/json",
-// 	)
-
-// 	w.WriteHeader(http.StatusOK)
-
-// 	_ = json.NewEncoder(w).Encode(permissionList)
-// }
-
 func (h *Handler) ParseSyncQuery(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -130,70 +59,67 @@ func (h *Handler) ParseSyncQuery(
 	return startChangeID, limit, nil
 }
 
-// func (h *Handler) SyncVault(
-// 	w http.ResponseWriter,
-// 	r *http.Request,
-// ) {
-// 	if r.Method != http.MethodPost {
-// 		http.Error(
-// 			w,
-// 			"method not allowed",
-// 			http.StatusMethodNotAllowed,
-// 		)
-// 		return
-// 	}
+func (h *Handler) SyncVault(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if r.Method != http.MethodPost {
+		http.Error(
+			w,
+			"method not allowed",
+			http.StatusMethodNotAllowed,
+		)
+		return
+	}
 
-// 	authorizedUser := middleware.GetauthorizedUser(r)
-// 	if authorizedUser == nil {
-// 		http.Error(
-// 			w,
-// 			"unauthorized",
-// 			http.StatusUnauthorized,
-// 		)
-// 		return
-// 	}
+	authorizedUser := middleware.GetauthorizedUser(r)
+	if authorizedUser == nil {
+		http.Error(
+			w,
+			"unauthorized",
+			http.StatusUnauthorized,
+		)
+		return
+	}
 
-// 	var pendingChange tacpasscontract.PendingVaultChange
+	var pendingChange tacpasscontract.PendingVaultChange
 
-// 	if err := json.NewDecoder(r.Body).Decode(&pendingChange); err != nil {
-// 		http.Error(
-// 			w,
-// 			"invalid request body",
-// 			http.StatusBadRequest,
-// 		)
-// 		return
-// 	}
+	if err := json.NewDecoder(r.Body).Decode(&pendingChange); err != nil {
+		http.Error(
+			w,
+			"invalid request body",
+			http.StatusBadRequest,
+		)
+		return
+	}
 
-// 	startChangeID, limit, err := h.ParseSyncQuery(
-// 		w,
-// 		r,
-// 	)
-// 	if err != nil {
-// 		http.Error(
-// 			w,
-// 			err.Error(),
-// 			http.StatusBadRequest,
-// 		)
-// 	}
+	startChangeID, limit, err := h.ParseSyncQuery(
+		w,
+		r,
+	)
+	if err != nil {
+		http.Error(
+			w,
+			err.Error(),
+			http.StatusBadRequest,
+		)
+	}
 
-// 	successList, err := h.vault.SyncOnSot(
-// 		h.sotID,
-// 		authorizedUser.PermissionID,
-// 		authorizedUser.Permission.GroupID,
-// 		authorizedUser.Hostname,
-// 		startChangeID,
-// 		limit,
-// 		&pendingChange,
-// 	)
-// 	if err != nil {
-// 		h.handleServiceError(w, err)
-// 		return
-// 	}
+	allowedChanges, err := h.vault.Sot.Sync(
+		authorizedUser,
+		startChangeID,
+		limit,
+		&pendingChange,
+	)
+	if err != nil {
+		h.handleServiceError(w, err)
+		return
+	}
 
-// 	w.WriteHeader(http.StatusNoContent)
+	w.WriteHeader(http.StatusNoContent)
 
-// 	_ = json.NewEncoder(w).Encode(successList)
-// }
+	_ = json.NewEncoder(w).Encode(allowedChanges)
+}
 
 func (h *Handler) GetVaultSyncLatestChangeID(
 	w http.ResponseWriter,
@@ -290,102 +216,60 @@ func (h *Handler) VaultChangeCount(
 	)
 }
 
-// func (h *Handler) GetVaultChangesAfter(
-// 	w http.ResponseWriter,
-// 	r *http.Request,
-// ) {
-// 	if r.Method != http.MethodGet {
-// 		http.Error(
-// 			w,
-// 			"method not allowed",
-// 			http.StatusMethodNotAllowed,
-// 		)
-// 		return
-// 	}
+func (h *Handler) GetVaultChangesAfter(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if r.Method != http.MethodGet {
+		http.Error(
+			w,
+			"method not allowed",
+			http.StatusMethodNotAllowed,
+		)
+		return
+	}
 
-// 	authorizedUser := middleware.GetauthorizedUser(r)
-// 	if authorizedUser == nil {
-// 		http.Error(
-// 			w,
-// 			"unauthorized",
-// 			http.StatusUnauthorized,
-// 		)
-// 		return
-// 	}
+	authorizedUser := middleware.GetauthorizedUser(r)
+	if authorizedUser == nil {
+		http.Error(
+			w,
+			"unauthorized",
+			http.StatusUnauthorized,
+		)
+		return
+	}
 
-// 	startChangeID, limit, err := h.ParseSyncQuery(
-// 		w,
-// 		r,
-// 	)
-// 	if err != nil {
-// 		http.Error(
-// 			w,
-// 			err.Error(),
-// 			http.StatusBadRequest,
-// 		)
-// 	}
+	startChangeID, limit, err := h.ParseSyncQuery(
+		w,
+		r,
+	)
+	if err != nil {
+		http.Error(
+			w,
+			err.Error(),
+			http.StatusBadRequest,
+		)
+	}
 
-// 	changes, err := h.vault.GetChangesAfterOnSot(
-// 		h.sotID,
-// 		authorizedUser.PermissionID,
-// 		startChangeID,
-// 		limit,
-// 	)
-// 	if err != nil {
-// 		h.handleServiceError(w, err)
-// 		return
-// 	}
+	changes, err := h.vault.Sot.GetChangesAfter(
+		authorizedUser,
+		startChangeID,
+		limit,
+	)
+	if err != nil {
+		h.handleServiceError(w, err)
+		return
+	}
 
-// 	w.Header().Set(
-// 		"Content-Type",
-// 		"application/json",
-// 	)
+	w.Header().Set(
+		"Content-Type",
+		"application/json",
+	)
 
-// 	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(http.StatusOK)
 
-// 	_ = json.NewEncoder(w).Encode(changes)
-// }
-
-// func (h *Handler) ListVault(
-// 	w http.ResponseWriter,
-// 	r *http.Request,
-// ) {
-// 	if r.Method != http.MethodGet {
-// 		http.Error(
-// 			w,
-// 			"method not allowed",
-// 			http.StatusMethodNotAllowed,
-// 		)
-// 		return
-// 	}
-
-// 	authorizedUser := middleware.GetauthorizedUser(r)
-// 	if authorizedUser == nil {
-// 		http.Error(
-// 			w,
-// 			"unauthorized",
-// 			http.StatusUnauthorized,
-// 		)
-// 		return
-// 	}
-
-// 	vaultAccessList, err := h.vault.VaultList(
-// 		authorizedUser,
-// 	)
-// 	if err != nil {
-// 		h.handleServiceError(w, err)
-// 		return
-// 	}
-
-// 	w.Header().Set(
-// 		"Content-Type",
-// 		"application/json",
-// 	)
-
-// 	w.WriteHeader(http.StatusOK)
-
-// 	_ = json.NewEncoder(w).Encode(vaultAccessList)
-// }
+	_ = json.NewEncoder(w).Encode(changes)
+}
 
 func (h *Handler) GetRecordSyncLatestChangeID(
 	w http.ResponseWriter,
@@ -420,8 +304,7 @@ func (h *Handler) GetRecordSyncLatestChangeID(
 		return
 	}
 
-	lastChangeID, err := h.vaultRecordService.GetSyncLatestChangeId(
-		h.sotID,
+	lastChangeID, err := h.vaultRecordService.Remote.GetSyncLatestChangeId(
 		vaultID,
 	)
 	if err != nil {
@@ -602,9 +485,7 @@ func (h *Handler) RecordChangeCount(
 		r.URL.Query().Get("start_change_id"),
 	)
 
-	count, err := h.vaultRecordService.GetChangeCount(
-		// authorizedUser,
-		h.sotID,
+	count, err := h.vaultRecordService.Remote.GetChangeCount(
 		vaultID,
 		startChangeID,
 	)
@@ -672,10 +553,8 @@ func (h *Handler) GetRecordChangesAfter(
 		)
 	}
 
-	changes, err := h.vaultRecordService.GetChangesAfter(
-		h.vaultDir,
+	changes, err := h.vaultRecordService.Remote.GetChangesAfter(
 		vaultID,
-		h.sotID,
 		startChangeID,
 		limit,
 	)
@@ -755,10 +634,8 @@ func (h *Handler) SyncRecord(
 		)
 	}
 
-	err = h.vaultRecordService.SyncOnSot(
+	err = h.vaultRecordService.Remote.SyncOnSot(
 		authorizedUser,
-		h.vaultDir,
-		h.sotID,
 		vaultID,
 		startChangeID,
 		limit,

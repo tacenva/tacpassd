@@ -70,25 +70,20 @@ func (r *Router) registerVaultRoutes(
 	handler *vault.Handler,
 ) {
 	// Vault
-	// r.handle(
-	// 	"GET /vault",
-	// 	handler.ListVault,
-	// )
+	r.handle(
+		"GET /vault/changes/count",
+		handler.VaultChangeCount,
+	)
 
-	// r.handle(
-	// 	"GET /vault/changes/count",
-	// 	handler.VaultChangeCount,
-	// )
+	r.handle(
+		"GET /vault/changes",
+		handler.GetVaultChangesAfter,
+	)
 
-	// r.handle(
-	// 	"GET /vault/changes",
-	// 	handler.GetVaultChangesAfter,
-	// )
-
-	// r.handle(
-	// 	"POST /vault/sync",
-	// 	handler.SyncVault,
-	// )
+	r.handle(
+		"POST /vault/sync",
+		handler.SyncVault,
+	)
 
 	// Record
 	r.handle(
@@ -172,12 +167,6 @@ func (r *Router) registerAccessControlRoutes(
 		handler.SetRevokeUnit,
 	)
 
-	// // Public Keys
-	// r.handle(
-	// 	"POST /access-control/groups/public-keys",
-	// 	handler.GetPublicKeys,
-	// )
-
 	// User
 	r.handle(
 		"PATCH /access-control/users/{id}/approve",
@@ -188,4 +177,11 @@ func (r *Router) registerAccessControlRoutes(
 		"DELETE /access-control/users/{id}",
 		handler.DeleteUser,
 	)
+
+	// Group
+	r.handle(
+		"QUERY /access-groups/public-keys",
+		handler.GetPublicKeys,
+	)
+
 }
