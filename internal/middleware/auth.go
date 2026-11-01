@@ -5,13 +5,13 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/tacenva/tacpass-core/auth"
-	"github.com/tacenva/tacpass-core/entity"
+	"github.com/tacenva/tacenva-core/auth"
+	tacenvaentity "github.com/tacenva/tacenva-core/entity"
 )
 
 type contextKey string
 
-const authUserKey contextKey = "auth-user"
+const authorizedUserKey contextKey = "auth-user"
 
 type Auth struct {
 	authService *auth.Service
@@ -76,7 +76,7 @@ func (m *Auth) Authenticate(
 				return
 			}
 
-			authUser, err := m.authService.GetUserData(
+			authorizedUser, err := m.authService.GetUserData(
 				token,
 			)
 			if err != nil {
@@ -88,7 +88,7 @@ func (m *Auth) Authenticate(
 				return
 			}
 
-			if authUser == nil {
+			if authorizedUser == nil {
 				http.Error(
 					w,
 					"unauthorized",
@@ -99,8 +99,8 @@ func (m *Auth) Authenticate(
 
 			ctx := context.WithValue(
 				r.Context(),
-				authUserKey,
-				authUser,
+				authorizedUserKey,
+				authorizedUser,
 			)
 
 			next.ServeHTTP(
@@ -111,24 +111,24 @@ func (m *Auth) Authenticate(
 	)
 }
 
-func GetAuthUser(
+func GetauthorizedUser(
 	r *http.Request,
-) *entity.User {
-	authUser, _ := r.Context().Value(
-		authUserKey,
-	).(*entity.User)
+) *tacenvaentity.User {
+	authorizedUser, _ := r.Context().Value(
+		authorizedUserKey,
+	).(*tacenvaentity.User)
 
-	return authUser
+	return authorizedUser
 }
 
-func WithAuthUser(
+func WithauthorizedUser(
 	r *http.Request,
-	authUser *entity.User,
+	authorizedUser *tacenvaentity.User,
 ) *http.Request {
 	ctx := context.WithValue(
 		r.Context(),
-		authUserKey,
-		authUser,
+		authorizedUserKey,
+		authorizedUser,
 	)
 
 	return r.WithContext(ctx)

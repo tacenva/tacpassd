@@ -2,575 +2,452 @@ package accesscontrol
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
-	"strings"
 
-	coreAC "github.com/tacenva/tacpass-core/accesscontrol"
-	"github.com/tacenva/tacpass-core/entity"
-	"github.com/tacenva/tacpass-core/util/keyring"
+	"github.com/tacenva/tacenva-core/accesscontrol"
+	"github.com/tacenva/tacenva-core/config"
+	tacenvacontract "github.com/tacenva/tacenva-core/contract"
+	tacenvaentity "github.com/tacenva/tacenva-core/entity"
 	"github.com/tacenva/tacpassd/internal/middleware"
 )
 
 type Handler struct {
-	accesscontrolService *coreAC.Service
+	accesscontrolService *accesscontrol.Service
 }
 
 func NewHandler(
-	accesscontrolService *coreAC.Service,
+	accesscontrolService *accesscontrol.Service,
+	_ *config.Config,
 ) *Handler {
 	return &Handler{
 		accesscontrolService: accesscontrolService,
 	}
 }
 
-type createRequest struct {
-	Name      string           `json:"name"`
-	Privilege entity.Privilege `json:"privilege"`
+func requireMethod(
+	w http.ResponseWriter,
+	r *http.Request,
+	method string,
+) bool {
+	if r.Method == method {
+		return true
+	}
+
+	w.Header().Set("Allow", method)
+	http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	return false
 }
 
-type changeNameRequest struct {
-	Name string `json:"name"`
-}
-
-type changePrivilegeRequest struct {
-	Privilege entity.Privilege `json:"privilege"`
-}
-
-func (h *Handler) List(
+func (h *Handler) CreateGroup(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
-		http.Error(
-			w,
-			"unauthorized",
-			http.StatusUnauthorized,
-		)
+	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
 
-	permissions, err := h.accesscontrolService.List(
-		authUser,
-	)
-	if err != nil {
-		h.handleServiceError(w, err)
+	authorizedUser := middleware.GetauthorizedUser(r)
+	if authorizedUser == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	writeJSON(
-		w,
-		http.StatusOK,
-		permissions,
-	)
-}
-
-func (h *Handler) Get(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
-		http.Error(
-			w,
-			"unauthorized",
-			http.StatusUnauthorized,
-		)
+	var req tacenvacontract.AccessGroupSetupRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	permissionID := strings.TrimSpace(
-		r.PathValue("id"),
-	)
-
-	if permissionID == "" {
-		http.Error(
-			w,
-			"id is required",
-			http.StatusBadRequest,
-		)
-		return
-	}
-
-	permission, err := h.accesscontrolService.Get(
-		authUser,
-		permissionID,
-	)
-	if err != nil {
-		h.handleServiceError(w, err)
-		return
-	}
-
-	writeJSON(
-		w,
-		http.StatusOK,
-		permission,
-	)
-}
-
-func (h *Handler) Create(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
-		http.Error(
-			w,
-			"unauthorized",
-			http.StatusUnauthorized,
-		)
-		return
-	}
-
-	var request createRequest
-
-	if err := json.NewDecoder(r.Body).Decode(
-		&request,
+	if err := h.accesscontrolService.CreateGroup(
+		authorizedUser,
+		&req,
 	); err != nil {
-		http.Error(
-			w,
-			"invalid request body",
-			http.StatusBadRequest,
-		)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	request.Name = strings.TrimSpace(request.Name)
-
-	if request.Name == "" {
-		http.Error(
-			w,
-			"name is required",
-			http.StatusBadRequest,
-		)
-		return
-	}
-
-	vaultaccesslist, permission, keypair, err := h.accesscontrolService.Create(
-		authUser,
-		request.Name,
-		request.Privilege,
-	)
-	if err != nil {
-		h.handleServiceError(w, err)
-		return
-	}
-
-	response := struct {
-		VaultAccessList []entity.VaultAccess `json:"vault_access"`
-		Permission      *entity.Permission   `json:"permission"`
-		KeyPair         *keyring.KeyPair     `json:"keypair"`
-	}{
-		VaultAccessList: vaultaccesslist,
-		Permission:      permission,
-		KeyPair:         keypair,
-	}
-
-	writeJSON(
-		w,
-		http.StatusCreated,
-		response,
-	)
+	w.WriteHeader(http.StatusCreated)
 }
 
-func (h *Handler) ChangeName(
+func (h *Handler) UpdateGroup(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
-		http.Error(
-			w,
-			"unauthorized",
-			http.StatusUnauthorized,
-		)
+	if !requireMethod(w, r, http.MethodPut) {
 		return
 	}
 
-	id := strings.TrimSpace(
-		r.PathValue("id"),
-	)
-
-	if id == "" {
-		http.Error(
-			w,
-			"access control id is required",
-			http.StatusBadRequest,
-		)
+	authorizedUser := middleware.GetauthorizedUser(r)
+	if authorizedUser == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	var request changeNameRequest
+	groupID := r.PathValue("id")
+	if groupID == "" {
+		http.Error(w, "missing group ID", http.StatusBadRequest)
+		return
+	}
 
-	if err := json.NewDecoder(r.Body).Decode(
-		&request,
+	var req tacenvaentity.AccessGroup
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	req.ID = groupID
+
+	if err := h.accesscontrolService.UpdateGroup(
+		authorizedUser,
+		&req,
 	); err != nil {
-		http.Error(
-			w,
-			"invalid request body",
-			http.StatusBadRequest,
-		)
-		return
-	}
-
-	request.Name = strings.TrimSpace(request.Name)
-
-	if request.Name == "" {
-		http.Error(
-			w,
-			"name is required",
-			http.StatusBadRequest,
-		)
-		return
-	}
-
-	if err := h.accesscontrolService.ChangeName(
-		authUser,
-		id,
-		request.Name,
-	); err != nil {
-		h.handleServiceError(w, err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *Handler) ChangePrivilege(
+func (h *Handler) DeleteGroup(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
-		http.Error(
-			w,
-			"unauthorized",
-			http.StatusUnauthorized,
-		)
+	if !requireMethod(w, r, http.MethodDelete) {
 		return
 	}
 
-	permissionID := strings.TrimSpace(
-		r.PathValue("id"),
-	)
-
-	if permissionID == "" {
-		http.Error(
-			w,
-			"id is required",
-			http.StatusBadRequest,
-		)
+	authorizedUser := middleware.GetauthorizedUser(r)
+	if authorizedUser == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	var request changePrivilegeRequest
+	groupID := r.PathValue("id")
+	if groupID == "" {
+		http.Error(w, "missing group ID", http.StatusBadRequest)
+		return
+	}
 
-	if err := json.NewDecoder(r.Body).Decode(
-		&request,
+	if err := h.accesscontrolService.DeleteGroup(
+		authorizedUser,
+		groupID,
 	); err != nil {
-		http.Error(
-			w,
-			"invalid request body",
-			http.StatusBadRequest,
-		)
-		return
-	}
-
-	if err := h.accesscontrolService.ChangePrivilege(
-		authUser,
-		permissionID,
-		request.Privilege,
-	); err != nil {
-		h.handleServiceError(w, err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *Handler) Revoke(
+func (h *Handler) GroupWithChildren(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
-		http.Error(
-			w,
-			"unauthorized",
-			http.StatusUnauthorized,
-		)
+	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
 
-	permissionID := strings.TrimSpace(
-		r.PathValue("id"),
-	)
-
-	if permissionID == "" {
-		http.Error(
-			w,
-			"id is required",
-			http.StatusBadRequest,
-		)
+	authorizedUser := middleware.GetauthorizedUser(r)
+	if authorizedUser == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	if err := h.accesscontrolService.Revoke(
-		authUser,
-		permissionID,
-	); err != nil {
-		h.handleServiceError(w, err)
-		return
-	}
+	groupID := r.PathValue("id")
 
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func (h *Handler) UserList(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
-		http.Error(
-			w,
-			"unauthorized",
-			http.StatusUnauthorized,
-		)
-		return
-	}
-
-	permissionID := strings.TrimSpace(
-		r.PathValue("id"),
-	)
-
-	if permissionID == "" {
-		http.Error(
-			w,
-			"permission id is required",
-			http.StatusBadRequest,
-		)
-		return
-	}
-
-	users, err := h.accesscontrolService.UserList(
-		authUser,
-		permissionID,
+	accessGroupTree, err := h.accesscontrolService.GroupWithChildren(
+		authorizedUser,
+		groupID,
 	)
 	if err != nil {
-		h.handleServiceError(w, err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	writeJSON(
-		w,
-		http.StatusOK,
-		users,
-	)
+	w.Header().Set("Content-Type", "application/json")
+
+	if err := json.NewEncoder(w).Encode(accessGroupTree); err != nil {
+		return
+	}
 }
 
-func (h *Handler) ApproveUser(
+func (h *Handler) CreateUnit(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
-		http.Error(
-			w,
-			"unauthorized",
-			http.StatusUnauthorized,
-		)
+	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
 
-	userID := strings.TrimSpace(
-		r.PathValue("userId"),
-	)
+	authorizedUser := middleware.GetauthorizedUser(r)
+	if authorizedUser == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
 
+	var req tacenvacontract.AccessUnitSetupReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := h.accesscontrolService.CreateUnit(
+		authorizedUser,
+		&req,
+	); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+}
+
+func (h *Handler) UpdateUnit(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if !requireMethod(w, r, http.MethodPut) {
+		return
+	}
+
+	authorizedUser := middleware.GetauthorizedUser(r)
+	if authorizedUser == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	unitID := r.PathValue("id")
+	if unitID == "" {
+		http.Error(w, "missing unit ID", http.StatusBadRequest)
+		return
+	}
+
+	var req tacenvaentity.AccessUnit
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	req.ID = unitID
+
+	if err := h.accesscontrolService.UpdateUnit(
+		authorizedUser,
+		&req,
+	); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) DeleteUnit(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if !requireMethod(w, r, http.MethodDelete) {
+		return
+	}
+
+	authorizedUser := middleware.GetauthorizedUser(r)
+	if authorizedUser == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	unitID := r.PathValue("id")
+	if unitID == "" {
+		http.Error(w, "missing unit ID", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.accesscontrolService.DeleteUnit(
+		authorizedUser,
+		unitID,
+	); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) SetRevokeUnit(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if !requireMethod(w, r, http.MethodPatch) {
+		return
+	}
+
+	authorizedUser := middleware.GetauthorizedUser(r)
+	if authorizedUser == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	unitID := r.PathValue("id")
+	if unitID == "" {
+		http.Error(w, "missing unit ID", http.StatusBadRequest)
+		return
+	}
+
+	var req tacenvacontract.RevokeStatusReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := h.accesscontrolService.SetRevokeUnit(
+		authorizedUser,
+		unitID,
+		req.IsRevoked,
+	); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) UnitList(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
+
+	authorizedUser := middleware.GetauthorizedUser(r)
+	if authorizedUser == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	groupID := r.PathValue("id")
+	if groupID == "" {
+		http.Error(w, "missing group ID", http.StatusBadRequest)
+		return
+	}
+
+	unitList, err := h.accesscontrolService.UnitList(
+		authorizedUser,
+		groupID,
+	)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	if err := json.NewEncoder(w).Encode(unitList); err != nil {
+		return
+	}
+}
+
+func (h *Handler) SetApprovalUser(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if !requireMethod(w, r, http.MethodPatch) {
+		return
+	}
+
+	authorizedUser := middleware.GetauthorizedUser(r)
+	if authorizedUser == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	userID := r.PathValue("id")
 	if userID == "" {
-		http.Error(
-			w,
-			"user id is required",
-			http.StatusBadRequest,
-		)
+		http.Error(w, "missing user ID", http.StatusBadRequest)
 		return
 	}
 
-	user, err := h.accesscontrolService.ApproveUser(
-		authUser,
+	var req tacenvacontract.RevokeStatusReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := h.accesscontrolService.SetApprovalUser(
+		authorizedUser,
 		userID,
-	)
-	if err != nil {
-		h.handleServiceError(w, err)
+		req.IsRevoked,
+	); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	writeJSON(
-		w,
-		http.StatusOK,
-		user,
-	)
+	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *Handler) RevokeUser(
+func (h *Handler) DeleteUser(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
-		http.Error(
-			w,
-			"unauthorized",
-			http.StatusUnauthorized,
-		)
+	if !requireMethod(w, r, http.MethodDelete) {
 		return
 	}
 
-	userID := strings.TrimSpace(
-		r.PathValue("userId"),
-	)
+	authorizedUser := middleware.GetauthorizedUser(r)
+	if authorizedUser == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
 
+	userID := r.PathValue("id")
 	if userID == "" {
-		http.Error(
-			w,
-			"user id is required",
-			http.StatusBadRequest,
-		)
+		http.Error(w, "missing user ID", http.StatusBadRequest)
 		return
 	}
 
-	user, err := h.accesscontrolService.RevokeUser(
-		authUser,
+	if err := h.accesscontrolService.DeleteUser(
+		authorizedUser,
 		userID,
+	); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) GetPublicKeys(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if !requireMethod(w, r, "QUERY") {
+		return
+	}
+
+	authorizedUser := middleware.GetauthorizedUser(r)
+	if authorizedUser == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req tacenvacontract.PublicKeyOfGroupsReq
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	publicKeys, err := h.accesscontrolService.PublicKeyOfGroups(
+		authorizedUser,
+		req.GroupIDs,
 	)
 	if err != nil {
-		h.handleServiceError(w, err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	writeJSON(
-		w,
-		http.StatusOK,
-		user,
-	)
-}
+	w.Header().Set("Content-Type", "application/json")
 
-func (h *Handler) handleServiceError(
-	w http.ResponseWriter,
-	err error,
-) {
-	switch {
-	case errors.Is(err, coreAC.ErrPermission):
-		http.Error(
-			w,
-			"forbidden",
-			http.StatusForbidden,
-		)
-
-	case errors.Is(err, coreAC.ErrNotFound):
-		http.Error(
-			w,
-			"not found",
-			http.StatusNotFound,
-		)
-
-	default:
-		http.Error(
-			w,
-			"internal server error",
-			http.StatusInternalServerError,
-		)
-	}
-}
-
-func writeJSON(
-	w http.ResponseWriter,
-	status int,
-	data any,
-) {
-	w.Header().Set(
-		"Content-Type",
-		"application/json",
-	)
-
-	w.WriteHeader(status)
-
-	_ = json.NewEncoder(w).Encode(data)
-}
-
-func (h *Handler) DeletePermission(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
-		http.Error(
-			w,
-			"unauthorized",
-			http.StatusUnauthorized,
-		)
+	if err := json.NewEncoder(w).Encode(publicKeys); err != nil {
 		return
 	}
-
-	permissionID := strings.TrimSpace(
-		r.PathValue("id"),
-	)
-
-	if permissionID == "" {
-		http.Error(
-			w,
-			"id is required",
-			http.StatusBadRequest,
-		)
-		return
-	}
-
-	if err := h.accesscontrolService.DeletePermission(
-		authUser,
-		permissionID,
-	); err != nil {
-		h.handleServiceError(w, err)
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func (h *Handler) GrantPrivilege(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-	authUser := middleware.GetAuthUser(r)
-	if authUser == nil {
-		http.Error(
-			w,
-			"unauthorized",
-			http.StatusUnauthorized,
-		)
-		return
-	}
-
-	var vaultAccessList []entity.VaultAccess
-
-	if err := json.NewDecoder(r.Body).Decode(
-		&vaultAccessList,
-	); err != nil {
-		http.Error(
-			w,
-			"invalid request body",
-			http.StatusBadRequest,
-		)
-		return
-	}
-
-	if err := h.accesscontrolService.GrantPrivilege(
-		authUser,
-		vaultAccessList,
-	); err != nil {
-		h.handleServiceError(w, err)
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
 }

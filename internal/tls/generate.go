@@ -15,7 +15,11 @@ import (
 	"time"
 )
 
-func GenerateSelfSignedCert(certFile, keyFile string) error {
+func GenerateSelfSignedCert(
+	certFile string,
+	keyFile string,
+	hostname string,
+) error {
 	if certFile == "" {
 		return fmt.Errorf("cert file is required")
 	}
@@ -24,41 +28,346 @@ func GenerateSelfSignedCert(certFile, keyFile string) error {
 		return fmt.Errorf("key file is required")
 	}
 
-	// Keep the existing certificate/key.
+	hostname = normalizeHostname(hostname)
+
+	if hostname == "" {
+		return fmt.Errorf("hostname is required")
+	}
+
+	// Both already exist.
 	//
-	// This is important for TOFU. The TUI pins the server's
-	// public key, so generating a new key on every daemon start
-	// would invalidate the trust relationship.
+	// Keep the existing private key and certificate when they are
+	// still valid for the configured hostname.
 	if fileExists(certFile) && fileExists(keyFile) {
-		return nil
+		valid, err := certificateIsValid(
+			certFile,
+			keyFile,
+			hostname,
+		)
+		if err != nil {
+			return fmt.Errorf(
+				"check existing certificate: %w",
+				err,
+			)
+		}
+
+		if valid {
+			return nil
+		}
+
+		// Certificate needs to be updated, but keep the
+		// existing private key so the server identity does
+		// not change.
+		privateKey, err := loadPrivateKey(keyFile)
+		if err != nil {
+			return fmt.Errorf(
+				"load existing private key: %w",
+				err,
+			)
+		}
+
+		return writeCertificate(
+			certFile,
+			privateKey,
+			hostname,
+		)
 	}
 
-	if err := os.MkdirAll(filepath.Dir(certFile), 0700); err != nil {
-		return fmt.Errorf("create cert directory: %w", err)
+	// A key exists but the certificate does not.
+	//
+	// Reuse the existing key instead of generating another one.
+	if fileExists(keyFile) {
+		privateKey, err := loadPrivateKey(keyFile)
+		if err != nil {
+			return fmt.Errorf(
+				"load existing private key: %w",
+				err,
+			)
+		}
+
+		return writeCertificate(
+			certFile,
+			privateKey,
+			hostname,
+		)
 	}
 
-	if err := os.MkdirAll(filepath.Dir(keyFile), 0700); err != nil {
-		return fmt.Errorf("create key directory: %w", err)
+	// No private key exists, so this is a completely new
+	// server identity.
+	if err := os.MkdirAll(
+		filepath.Dir(keyFile),
+		0700,
+	); err != nil {
+		return fmt.Errorf(
+			"create key directory: %w",
+			err,
+		)
 	}
 
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	privateKey, err := rsa.GenerateKey(
+		rand.Reader,
+		2048,
+	)
 	if err != nil {
-		return fmt.Errorf("generate private key: %w", err)
+		return fmt.Errorf(
+			"generate private key: %w",
+			err,
+		)
 	}
 
-	serialLimit := new(big.Int).Lsh(big.NewInt(1), 128)
+	if err := writePrivateKey(
+		keyFile,
+		privateKey,
+	); err != nil {
+		return err
+	}
+
+	return writeCertificate(
+		certFile,
+		privateKey,
+		hostname,
+	)
+}
+
+func normalizeHostname(hostname string) string {
+	hostname = strings.TrimSpace(hostname)
+	hostname = strings.TrimSuffix(hostname, ".")
+
+	if hostname == "" {
+		return ""
+	}
+
+	if !strings.HasSuffix(
+		strings.ToLower(hostname),
+		".local",
+	) {
+		hostname += ".local"
+	}
+
+	return hostname
+}
+
+func certificateIsValid(
+	certFile string,
+	keyFile string,
+	hostname string,
+) (bool, error) {
+	certificate, err := loadCertificate(certFile)
+	if err != nil {
+		return false, err
+	}
+
+	privateKey, err := loadPrivateKey(keyFile)
+	if err != nil {
+		return false, err
+	}
+
+	// Make sure the certificate actually belongs to the
+	// existing private key.
+	certificatePublicKey, ok := certificate.PublicKey.(*rsa.PublicKey)
+	if !ok {
+		return false, nil
+	}
+
+	if certificatePublicKey.N.Cmp(privateKey.N) != 0 ||
+		certificatePublicKey.E != privateKey.E {
+		return false, nil
+	}
+
+	// Do not keep an expired certificate.
+	now := time.Now()
+
+	if now.Before(certificate.NotBefore) ||
+		now.After(certificate.NotAfter) {
+		return false, nil
+	}
+
+	// Modern TLS hostname verification uses SAN.
+	for _, name := range certificate.DNSNames {
+		if strings.EqualFold(name, hostname) {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+func loadCertificate(
+	certFile string,
+) (*x509.Certificate, error) {
+	data, err := os.ReadFile(certFile)
+	if err != nil {
+		return nil, err
+	}
+
+	block, _ := pem.Decode(data)
+	if block == nil {
+		return nil, fmt.Errorf(
+			"invalid certificate PEM",
+		)
+	}
+
+	if block.Type != "CERTIFICATE" {
+		return nil, fmt.Errorf(
+			"unexpected PEM type %q",
+			block.Type,
+		)
+	}
+
+	certificate, err := x509.ParseCertificate(
+		block.Bytes,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"parse certificate: %w",
+			err,
+		)
+	}
+
+	return certificate, nil
+}
+
+func loadPrivateKey(
+	keyFile string,
+) (*rsa.PrivateKey, error) {
+	data, err := os.ReadFile(keyFile)
+	if err != nil {
+		return nil, err
+	}
+
+	block, _ := pem.Decode(data)
+	if block == nil {
+		return nil, fmt.Errorf(
+			"invalid private key PEM",
+		)
+	}
+
+	var privateKey *rsa.PrivateKey
+
+	switch block.Type {
+	case "PRIVATE KEY":
+		key, err := x509.ParsePKCS8PrivateKey(
+			block.Bytes,
+		)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"parse PKCS#8 private key: %w",
+				err,
+			)
+		}
+
+		var ok bool
+
+		privateKey, ok = key.(*rsa.PrivateKey)
+		if !ok {
+			return nil, fmt.Errorf(
+				"private key is not RSA",
+			)
+		}
+
+	case "RSA PRIVATE KEY":
+		var err error
+
+		privateKey, err = x509.ParsePKCS1PrivateKey(
+			block.Bytes,
+		)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"parse PKCS#1 private key: %w",
+				err,
+			)
+		}
+
+	default:
+		return nil, fmt.Errorf(
+			"unsupported private key PEM type %q",
+			block.Type,
+		)
+	}
+
+	return privateKey, nil
+}
+
+func writePrivateKey(
+	keyFile string,
+	privateKey *rsa.PrivateKey,
+) error {
+	if err := os.MkdirAll(
+		filepath.Dir(keyFile),
+		0700,
+	); err != nil {
+		return fmt.Errorf(
+			"create key directory: %w",
+			err,
+		)
+	}
+
+	keyDER, err := x509.MarshalPKCS8PrivateKey(
+		privateKey,
+	)
+	if err != nil {
+		return fmt.Errorf(
+			"marshal private key: %w",
+			err,
+		)
+	}
+
+	data := pem.EncodeToMemory(&pem.Block{
+		Type:  "PRIVATE KEY",
+		Bytes: keyDER,
+	})
+
+	if err := os.WriteFile(
+		keyFile,
+		data,
+		0600,
+	); err != nil {
+		return fmt.Errorf(
+			"write private key: %w",
+			err,
+		)
+	}
+
+	return nil
+}
+
+func writeCertificate(
+	certFile string,
+	privateKey *rsa.PrivateKey,
+	hostname string,
+) error {
+	if err := os.MkdirAll(
+		filepath.Dir(certFile),
+		0700,
+	); err != nil {
+		return fmt.Errorf(
+			"create cert directory: %w",
+			err,
+		)
+	}
+
+	serialLimit := new(big.Int).Lsh(
+		big.NewInt(1),
+		128,
+	)
 
 	serialNumber, err := rand.Int(
 		rand.Reader,
 		serialLimit,
 	)
 	if err != nil {
-		return fmt.Errorf("generate serial number: %w", err)
+		return fmt.Errorf(
+			"generate serial number: %w",
+			err,
+		)
 	}
 
 	privateIPs, err := getPrivateIPs()
 	if err != nil {
-		return fmt.Errorf("get private ips: %w", err)
+		return fmt.Errorf(
+			"get private IPs: %w",
+			err,
+		)
 	}
 
 	now := time.Now()
@@ -67,7 +376,7 @@ func GenerateSelfSignedCert(certFile, keyFile string) error {
 		SerialNumber: serialNumber,
 
 		Subject: pkix.Name{
-			CommonName: "tacpassd",
+			CommonName: hostname,
 		},
 
 		NotBefore: now.Add(-5 * time.Minute),
@@ -82,6 +391,16 @@ func GenerateSelfSignedCert(certFile, keyFile string) error {
 
 		BasicConstraintsValid: true,
 
+		// This is the important part for:
+		//
+		// https://archpc.local:49153
+		//
+		// Modern TLS clients validate the hostname
+		// against SAN, not CommonName.
+		DNSNames: []string{
+			hostname,
+		},
+
 		IPAddresses: privateIPs,
 	}
 
@@ -93,80 +412,29 @@ func GenerateSelfSignedCert(certFile, keyFile string) error {
 		privateKey,
 	)
 	if err != nil {
-		return fmt.Errorf("create certificate: %w", err)
+		return fmt.Errorf(
+			"create certificate: %w",
+			err,
+		)
 	}
 
-	if err := writeCertificate(certFile, certDER); err != nil {
-		return err
-	}
+	data := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: certDER,
+	})
 
-	keyDER, err := x509.MarshalPKCS8PrivateKey(privateKey)
-	if err != nil {
-		return fmt.Errorf("marshal private key: %w", err)
-	}
-
-	if err := writePrivateKey(keyFile, keyDER); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func writeCertificate(path string, der []byte) error {
-	certOut, err := os.OpenFile(
-		path,
-		os.O_WRONLY|os.O_CREATE|os.O_TRUNC,
+	if err := os.WriteFile(
+		certFile,
+		data,
 		0600,
-	)
-	if err != nil {
-		return fmt.Errorf("create certificate file: %w", err)
-	}
-	defer certOut.Close()
-
-	if err := pem.Encode(
-		certOut,
-		&pem.Block{
-			Type:  "CERTIFICATE",
-			Bytes: der,
-		},
 	); err != nil {
-		return fmt.Errorf("write certificate: %w", err)
+		return fmt.Errorf(
+			"write certificate: %w",
+			err,
+		)
 	}
 
 	return nil
-}
-
-func writePrivateKey(path string, der []byte) error {
-	keyOut, err := os.OpenFile(
-		path,
-		os.O_WRONLY|os.O_CREATE|os.O_TRUNC,
-		0600,
-	)
-	if err != nil {
-		return fmt.Errorf("create private key file: %w", err)
-	}
-	defer keyOut.Close()
-
-	if err := pem.Encode(
-		keyOut,
-		&pem.Block{
-			Type:  "PRIVATE KEY",
-			Bytes: der,
-		},
-	); err != nil {
-		return fmt.Errorf("write private key: %w", err)
-	}
-
-	return nil
-}
-
-func fileExists(path string) bool {
-	info, err := os.Stat(path)
-	if err != nil {
-		return false
-	}
-
-	return !info.IsDir()
 }
 
 func getPrivateIPs() ([]net.IP, error) {
@@ -175,7 +443,6 @@ func getPrivateIPs() ([]net.IP, error) {
 		return nil, err
 	}
 
-	seen := make(map[string]struct{})
 	var privateIPs []net.IP
 
 	for _, iface := range interfaces {
@@ -187,59 +454,49 @@ func getPrivateIPs() ([]net.IP, error) {
 			continue
 		}
 
-		if isExcludedInterface(iface.Name) {
+		if iface.Name == "docker0" ||
+			iface.Name == "docker_gwbridge" ||
+			strings.HasPrefix(iface.Name, "br-") ||
+			strings.HasPrefix(iface.Name, "veth") {
 			continue
 		}
 
-		addrs, err := iface.Addrs()
+		addresses, err := iface.Addrs()
 		if err != nil {
 			continue
 		}
 
-		for _, addr := range addrs {
+		for _, addr := range addresses {
 			var ip net.IP
 
 			switch value := addr.(type) {
 			case *net.IPNet:
 				ip = value.IP
+
 			case *net.IPAddr:
 				ip = value.IP
 			}
 
-			if ip == nil || !ip.IsPrivate() {
+			if ip == nil || ip.IsLoopback() {
 				continue
 			}
 
-			key := ip.String()
-
-			if _, exists := seen[key]; exists {
+			if !ip.IsPrivate() {
 				continue
 			}
 
-			seen[key] = struct{}{}
-			privateIPs = append(privateIPs, ip)
+			privateIPs = append(
+				privateIPs,
+				ip,
+			)
 		}
 	}
 
 	return privateIPs, nil
 }
 
-func isExcludedInterface(name string) bool {
-	if name == "docker0" {
-		return true
-	}
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
 
-	if name == "docker_gwbridge" {
-		return true
-	}
-
-	if strings.HasPrefix(name, "br-") {
-		return true
-	}
-
-	if strings.HasPrefix(name, "veth") {
-		return true
-	}
-
-	return false
+	return err == nil
 }

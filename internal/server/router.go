@@ -25,6 +25,7 @@ func NewRouter(
 		authMiddleware: authMiddleware,
 	}
 
+	router.registerHealthRoutes()
 	router.registerAuthRoutes(authHandler)
 	router.registerAccessControlRoutes(accessControlHandler)
 	router.registerVaultRoutes(vaultHandler)
@@ -42,123 +43,145 @@ func (r *Router) handle(
 	)
 }
 
+func (r *Router) registerHealthRoutes() {
+	r.mux.HandleFunc("GET /health", func(
+		w http.ResponseWriter,
+		req *http.Request,
+	) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+}
+
 func (r *Router) registerAuthRoutes(
 	handler *auth.Handler,
 ) {
-	r.mux.HandleFunc(
+	r.mux.HandleFunc( // dont use middleware
 		"POST /auth/enroll",
 		handler.Enroll,
+	)
+
+	r.handle(
+		"QUERY /auth/",
+		handler.Data,
 	)
 }
 
 func (r *Router) registerVaultRoutes(
 	handler *vault.Handler,
 ) {
+	// Vault
 	r.handle(
-		"POST /vault",
-		handler.CreateVault,
+		"GET /vault/changes/count",
+		handler.VaultChangeCount,
 	)
+
 	r.handle(
-		"POST /vault/sync/check",
-		handler.CheckVaultSync,
+		"GET /vault/changes",
+		handler.GetVaultChangesAfter,
 	)
 
 	r.handle(
 		"POST /vault/sync",
-		handler.VaultSync,
+		handler.SyncVault,
 	)
 
+	// Record
 	r.handle(
-		"PUT /vault/{vaultID}",
-		handler.UpdateVault,
-	)
-
-	r.handle(
-		"DELETE /vault/{vaultID}",
-		handler.DeleteVault,
-	)
-
-	r.handle(
-		"POST /vault/{vaultID}/record",
-		handler.CreateRecord,
-	)
-
-	r.handle(
-		"POST /vault/{vaultID}/record/blob/check",
-		handler.CheckRecordBlob,
+		"GET /vault/{vaultID}/record/blob",
+		handler.GetRecordBlob,
 	)
 
 	r.handle(
 		"POST /vault/{vaultID}/record/blob",
-		handler.RecordBlob,
+		handler.StoreRecordBlob,
 	)
 
 	r.handle(
-		"PUT /vault/{vaultID}/record/{recordID}",
-		handler.UpdateRecord,
+		"GET /vault/{vaultID}/record/changes/count",
+		handler.RecordChangeCount,
 	)
 
 	r.handle(
-		"DELETE /vault/{vaultID}/record/{recordID}",
-		handler.DeleteRecord,
+		"GET /vault/{vaultID}/record/changes",
+		handler.GetRecordChangesAfter,
+	)
+
+	r.handle(
+		"POST /vault/{vaultID}/record/sync",
+		handler.SyncRecord,
 	)
 }
 
 func (r *Router) registerAccessControlRoutes(
 	handler *accesscontrol.Handler,
 ) {
+	// Access Group
 	r.handle(
-		"GET /access-control",
-		handler.List,
+		"POST /access-control/groups",
+		handler.CreateGroup,
 	)
 
 	r.handle(
-		"GET /access-control/{id}",
-		handler.Get,
+		"PUT /access-control/groups/{id}",
+		handler.UpdateGroup,
 	)
 
 	r.handle(
-		"POST /access-control",
-		handler.Create,
+		"DELETE /access-control/groups/{id}",
+		handler.DeleteGroup,
 	)
 
 	r.handle(
-		"PATCH /access-control/{id}/name",
-		handler.ChangeName,
+		"GET /access-control/groups/tree",
+		handler.GroupWithChildren,
 	)
 
 	r.handle(
-		"PATCH /access-control/{id}/privilege",
-		handler.ChangePrivilege,
+		"GET /access-control/groups/{id}/tree",
+		handler.GroupWithChildren,
+	)
+
+	// Access Unit
+	r.handle(
+		"POST /access-control/groups/{id}/units",
+		handler.CreateUnit,
 	)
 
 	r.handle(
-		"POST /access-control/{id}/revoke",
-		handler.Revoke,
+		"GET /access-control/groups/{id}/units",
+		handler.UnitList,
 	)
 
 	r.handle(
-		"DELETE /access-control/{id}",
-		handler.DeletePermission,
+		"PUT /access-control/units/{id}",
+		handler.UpdateUnit,
 	)
 
 	r.handle(
-		"GET /access-control/{id}/users",
-		handler.UserList,
+		"DELETE /access-control/units/{id}",
+		handler.DeleteUnit,
 	)
 
 	r.handle(
-		"POST /access-control/users/{userId}/approve",
-		handler.ApproveUser,
+		"PATCH /access-control/units/{id}/revoke",
+		handler.SetRevokeUnit,
+	)
+
+	// User
+	r.handle(
+		"PATCH /access-control/users/{id}/approve",
+		handler.SetApprovalUser,
 	)
 
 	r.handle(
-		"POST /access-control/users/{userId}/revoke",
-		handler.RevokeUser,
+		"DELETE /access-control/users/{id}",
+		handler.DeleteUser,
 	)
 
+	// Group
 	r.handle(
-		"POST /access-control/vault-access",
-		handler.GrantPrivilege,
+		"QUERY /access-groups/public-keys",
+		handler.GetPublicKeys,
 	)
+
 }
