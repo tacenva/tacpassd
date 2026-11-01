@@ -437,7 +437,6 @@ func (h *Handler) StoreRecordBlob(
 	err = h.vaultRecordService.Remote.StoreBlob(
 		authorizedUser,
 		vaultID,
-		h.sotID,
 		data,
 	)
 	if err != nil {
