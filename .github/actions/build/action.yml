@@ -1,3 +1,4 @@
+
 name: Build Go Binary
 description: Setup Go and build tacpassd for the target platform
 
