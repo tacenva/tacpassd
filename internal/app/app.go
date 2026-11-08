@@ -22,10 +22,10 @@ import (
 )
 
 func Run(dev bool) error {
-	initAdmin := flag.String(
-		"init-admin",
+	initAccessCmd := flag.String(
+		"init-access",
 		"",
-		"init admin",
+		"init access group",
 	)
 
 	userStatus := flag.Bool(
@@ -82,10 +82,11 @@ func Run(dev bool) error {
 		cfg.SotID,
 	)
 
-	if *initAdmin != "" {
-		return initAdminPrivilege(
+	if *initAccessCmd != "" {
+		return initAccess(
 			services,
 			cfg.SotID,
+			*initAccessCmd,
 		)
 	}
 
@@ -228,22 +229,34 @@ func OpenSQLite(
 	return db, nil
 }
 
-func initAdminPrivilege(
+func initAccess(
 	services *tacpassapp.Services,
 	sotID string,
+	groupName string,
 ) error {
 	keyPair, _, err := services.AccessControl.Internal.InitAccess(
 		sotID,
+		groupName,
 	)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println(
-		"admin keypair created:",
-		keyPair.PublicKey,
-		keyPair.PrivateKey,
-	)
+	encodedKey, err := keyPair.EncodedKey()
+	if err != nil {
+		return fmt.Errorf("encode secret key: %w", err)
+	}
+
+	fmt.Println()
+	fmt.Println("Access initialized successfully.")
+	fmt.Println()
+	fmt.Println("IMPORTANT: Copy and securely store your secret key.")
+	fmt.Println("This key will only be displayed once and cannot be retrieved again.")
+	fmt.Println()
+	fmt.Println("Secret Key:")
+	fmt.Println(encodedKey)
+	fmt.Println()
+	fmt.Println("Make sure you have copied and saved this key before continuing.")
 
 	return nil
 }
