@@ -44,11 +44,11 @@ func (h *Handler) Enroll(
 		return
 	}
 
-	request.Hostname = strings.TrimSpace(request.Hostname)
+	request.ReplicaIdentity = strings.TrimSpace(request.ReplicaIdentity)
 	request.PublicKey = strings.TrimSpace(request.PublicKey)
 
-	if request.Hostname == "" {
-		http.Error(w, "hostname is required", http.StatusBadRequest)
+	if request.ReplicaIdentity == "" {
+		http.Error(w, "Identity is required", http.StatusBadRequest)
 		return
 	}
 

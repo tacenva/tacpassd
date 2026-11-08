@@ -70,7 +70,7 @@ func Run(dev bool) error {
 	services := tacpassapp.NewServices(
 		sqliteDB,
 		tacenvaDB,
-		cfg.Server.Hostname,
+		cfg.Identity(),
 	)
 
 	services.Vault.Sot.SetConfig(
@@ -323,7 +323,7 @@ func changeUserStatusInteractive(
 		fmt.Printf(
 			"[%d] %s (%s) status=%s\n",
 			i+1,
-			user.Hostname,
+			user.SotIdentity,
 			user.ID,
 			user.Status,
 		)
@@ -376,7 +376,7 @@ func changeUserStatusInteractive(
 		"\nuser %s: id=%s hostname=%s\n",
 		message,
 		selectedUser.ID,
-		selectedUser.Hostname,
+		selectedUser.SotIdentity,
 	)
 
 	return nil
