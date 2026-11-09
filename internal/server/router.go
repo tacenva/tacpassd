@@ -85,6 +85,12 @@ func (r *Router) registerVaultRoutes(
 		handler.SyncVault,
 	)
 
+	// Access Group
+	r.handle(
+		"GET /vault/access-groups",
+		handler.AllAccessGroup,
+	)
+
 	// Record
 	r.handle(
 		"GET /vault/{vaultID}/record/blob",
