@@ -191,15 +191,21 @@ func (h *Handler) CreateUnit(
 		return
 	}
 
-	if err := h.accesscontrolService.CreateUnit(
+	createdUnit, err := h.accesscontrolService.CreateUnit(
 		authorizedUser,
 		&req,
-	); err != nil {
+	)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
+
+	if err := json.NewEncoder(w).Encode(createdUnit); err != nil {
+		return
+	}
 }
 
 func (h *Handler) UpdateUnit(
