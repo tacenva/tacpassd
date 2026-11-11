@@ -137,11 +137,6 @@ func (r *Router) registerAccessControlRoutes(
 		handler.DeleteGroup,
 	)
 
-	// r.handle(
-	// 	"GET /access-control/groups/tree",
-	// 	handler.GroupWithChildren,
-	// )
-
 	r.handle(
 		"GET /access-control/groups/{id}/tree",
 		handler.GroupWithChildren,
