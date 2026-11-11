@@ -10,9 +10,9 @@ import (
 	"strings"
 
 	"github.com/tacenva/tacenva-core/config"
+	"github.com/tacenva/tacenva-core/genericerror"
 	"github.com/tacenva/tacpass-core/contract"
 	tacpasscontract "github.com/tacenva/tacpass-core/contract"
-	"github.com/tacenva/tacpass-core/errormessage"
 	"github.com/tacenva/tacpass-core/vault"
 	"github.com/tacenva/tacpass-core/vaultrecord"
 	"github.com/tacenva/tacpassd/internal/middleware"
@@ -49,7 +49,7 @@ func (h *Handler) ParseSyncQuery(
 		r.URL.Query().Get("limit"),
 	)
 	if limitValue == "" {
-		return "", 0, errors.New("limit is required")
+		return "", 0, genericerror.ErrRequired("limit value")
 	}
 
 	limit, err := strconv.ParseInt(limitValue, 10, 64)
@@ -636,25 +636,11 @@ func (h *Handler) handleServiceError(
 ) {
 	log.Printf("err: %s", err)
 	switch {
-	case errors.Is(err, errormessage.ErrPermission):
+	case errors.Is(err, genericerror.ErrPermissionDenied):
 		http.Error(
 			w,
 			"forbidden",
 			http.StatusForbidden,
-		)
-
-	case errors.Is(err, errormessage.ErrNotFound):
-		http.Error(
-			w,
-			"vault not found",
-			http.StatusNotFound,
-		)
-
-	case errors.Is(err, errormessage.ErrNameEmpty):
-		http.Error(
-			w,
-			"vault name cannot be empty",
-			http.StatusBadRequest,
 		)
 
 	default:
